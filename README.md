@@ -27,6 +27,7 @@ CV Asker is a local-first full-stack recruitment prototype. The project combines
 - Image generation through native `fetch`, backed by OpenRouter.
 - Shared AI HTTP retry layer with timeout and exponential backoff.
 - Ordered OpenRouter fallback for lightweight resume-text enrichment.
+- Centralized product defaults for models, limits, languages, templates, and AI request tuning in `src/config/resume-generation.ts`.
 - Resume generation service now builds the CV structure locally with `faker` and enriches only summary/highlights with the LLM.
 - Resume generation now creates a realistic synthetic headshot per candidate before rendering the PDF.
 - Resume datasets can be generated in `en` or `es-ES`.
@@ -49,12 +50,12 @@ Resume generation API
 
 - `pnpm dev`: Run the backend in watch mode.
 - `pnpm build`: Compile the TypeScript backend into `dist`.
-- `pnpm generate:resumes`: Delete the previous generated dataset and create a fresh default batch of 25 resumes in `es-ES`.
-- `pnpm generate:resumes:en`: Delete the previous generated dataset and create a fresh default batch of 25 resumes in English.
-- `pnpm generate:resumes:append`: Append a default batch of 25 resumes in `es-ES` to the current dataset.
-- `pnpm smoke:resumes -- --count 25 --language es-ES`: Run a full local resume-generation smoke test without starting the HTTP server.
+- `pnpm generate`: Run resume generation using the defaults defined in `src/config/resume-generation.ts`.
+- `pnpm generate -- --count 12 --language en --mode append`: Override any default for a specific run without touching `.env`.
 
 The backend starts on `http://localhost:3000` by default.
+
+AI and generation defaults now live in `src/config/resume-generation.ts`, so `.env` stays focused on secrets and local runtime values.
 
 ## API Endpoints
 
@@ -82,7 +83,7 @@ The backend starts on `http://localhost:3000` by default.
 - Each dataset generation run supports `replace` or `append`.
 - `replace` is the default mode and clears the previous output before generating a fresh dataset.
 - `append` keeps the existing dataset and adds a new batch of resumes without reusing candidate ids or file names.
-- The generator enforces the project requirement range of 25-30 resumes per generation run.
+- The generator currently accepts between 1 and 30 resumes per generation run.
 - Personal seed data and the full resume structure come from `faker` plus small local catalogs.
 - OpenRouter is used only to enrich the professional summary and highlights, keeping token usage and failure surface low.
 - The CV flow uses a generic image-generation layer to create a realistic synthetic profile photo for every candidate via OpenRouter image generation.
@@ -116,44 +117,37 @@ Example request body:
 Example smoke command:
 
 ```bash
-pnpm smoke:resumes -- --count 25 --mode replace --language es-ES --template aurora-split
+pnpm generate -- --count 25 --mode replace --language es-ES --template aurora-split
 ```
 
 Example smoke command with explicit multi-model fallback:
 
 ```bash
-pnpm smoke:resumes -- --count 6 --mode replace --language es-ES --template aurora-split --models google/gemini-2.5-flash-lite,google/gemma-3-27b-it:free,openai/gpt-oss-20b:free
+pnpm generate -- --count 6 --mode replace --language es-ES --template aurora-split --models google/gemini-2.5-flash-lite,google/gemma-3-27b-it:free,openai/gpt-oss-20b:free
 ```
 
 Default generation command:
 
 ```bash
-pnpm generate:resumes
+pnpm generate
 ```
 
 This command always runs in `replace` mode, so it removes the previously generated dataset before creating a new one.
-
-Other shortcuts:
-
-```bash
-pnpm generate:resumes:en
-pnpm generate:resumes:append
-```
 
 ## Environment Variables
 
 Copy `.env.example` into `.env`. `OPENROUTER_API_KEY` is required because CV generation now uses OpenRouter both for optional text enrichment and for image generation.
 
 - `PORT`: Local backend port.
-- `OPENROUTER_API_KEY`: API key used for optional resume-text enrichment.
-- `OPENROUTER_MODELS`: Optional comma-separated OpenRouter model list used in ordered fallback mode.
-- `OPENROUTER_MODEL`: Optional legacy single-model override. Ignored when `OPENROUTER_MODELS` is set.
-- `AI_REQUEST_TIMEOUT_MS`: Optional timeout per AI request. Defaults to `20000`.
-- `AI_REQUEST_MAX_RETRIES`: Optional retry count for retryable AI API failures. Defaults to `2`.
-- `AI_REQUEST_BASE_DELAY_MS`: Optional base delay for exponential backoff. Defaults to `600`.
-- `AI_COMPLETION_MAX_TOKENS`: Max output tokens requested from the model per completion. Defaults to `600`.
-- `RESUME_TEXT_BATCH_SIZE`: Number of CVs generated per LLM request. Defaults to `2`.
-- `RESUME_DEFAULT_LANGUAGE`: Default resume language when the API request does not send one. Supported values: `en`, `es-ES`.
+- `OPENROUTER_API_KEY`: API key used for resume-text enrichment and synthetic profile photo generation.
+
+Product-level AI settings are now centralized in `src/config/resume-generation.ts`, including:
+
+- Ordered fallback model list.
+- AI request timeout, retries, and backoff.
+- Completion token cap and LLM batch size.
+- Default resume count, language, mode, and template.
+- Default image model and image-generation parameters.
 
 ## Next Planned Steps
 

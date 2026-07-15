@@ -1,4 +1,5 @@
-import { env, hasOpenRouterApiKey } from '../../config/env.js';
+import { hasOpenRouterApiKey } from '../../config/env.js';
+import { resumeGenerationConfig } from '../../config/resume-generation.js';
 import { generateTextCompletion } from '../ai/ai.service.js';
 import type {
   ResumeDocumentLanguage,
@@ -245,7 +246,10 @@ async function tryEnrichBatch(
         systemInstruction:
           'You enrich synthetic resumes with concise, realistic recruiter-friendly copy. Preserve grammatical agreement with the provided role and candidate context. Always return JSON only.',
         prompt: createPrompt(batch),
-        maxTokens: Math.min(env.aiCompletionMaxTokens, Math.max(240, batch.length * 220)),
+        maxTokens: Math.min(
+          resumeGenerationConfig.textGeneration.completionMaxTokens,
+          Math.max(240, batch.length * 220)
+        ),
         responseFormat: {
           type: 'json_schema',
           json_schema: {

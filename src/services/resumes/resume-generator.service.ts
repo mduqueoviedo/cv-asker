@@ -1,6 +1,12 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { env, hasOpenRouterApiKey } from '../../config/env.js';
+import { hasOpenRouterApiKey } from '../../config/env.js';
+import {
+  getDefaultResumeLlmModels,
+  isResumeDocumentLanguage,
+  isResumeTemplateId,
+  resumeGenerationConfig,
+} from '../../config/resume-generation.js';
 import type {
   CandidateResume,
   GenerateResumeDatasetInput,
@@ -22,15 +28,11 @@ import {
 } from './resume-llm-text.service.js';
 import { createResumePdfRenderer } from './resume-renderer.service.js';
 
-const DEFAULT_RESUME_COUNT = 28;
-const MIN_RESUME_COUNT = 1;
-const MAX_RESUME_COUNT = 30;
 const OUTPUT_DIRECTORY = path.join(process.cwd(), 'storage', 'generated-resumes');
 const PDF_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'pdfs');
 const METADATA_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'metadata');
 const MANIFEST_PATH = path.join(OUTPUT_DIRECTORY, 'manifest.json');
 const LEGACY_HTML_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'html');
-const DEFAULT_RESUME_TEMPLATE: ResumeTemplateId = 'aurora-split';
 const resumeSeedDataProvider = createFakerResumeSeedDataProvider();
 
 interface CandidateResumeDraft
@@ -64,8 +66,10 @@ function clampResumeCount(value: number): number {
     throw new Error('Resume count must be an integer.');
   }
 
-  if (value < MIN_RESUME_COUNT || value > MAX_RESUME_COUNT) {
-    throw new Error(`Resume count must stay between ${MIN_RESUME_COUNT} and ${MAX_RESUME_COUNT}.`);
+  const { min, max } = resumeGenerationConfig.limits.count;
+
+  if (value < min || value > max) {
+    throw new Error(`Resume count must stay between ${min} and ${max}.`);
   }
 
   return value;
@@ -91,13 +95,13 @@ function resolveGenerationMode(input: GenerateResumeDatasetInput): ResumeGenerat
     return input.cleanOutput ? 'replace' : 'append';
   }
 
-  return 'replace';
+  return resumeGenerationConfig.defaults.mode;
 }
 
 function resolveDocumentLanguage(input: GenerateResumeDatasetInput): ResumeDocumentLanguage {
-  const language = input.language ?? env.defaultResumeLanguage;
+  const language = input.language ?? resumeGenerationConfig.defaults.language;
 
-  if (language !== 'en' && language !== 'es-ES') {
+  if (!isResumeDocumentLanguage(language)) {
     throw new Error('Resume language must be either "en" or "es-ES".');
   }
 
@@ -105,10 +109,10 @@ function resolveDocumentLanguage(input: GenerateResumeDatasetInput): ResumeDocum
 }
 
 function resolveResumeTemplate(input: GenerateResumeDatasetInput): ResumeTemplateId {
-  const template = input.template ?? DEFAULT_RESUME_TEMPLATE;
+  const template = input.template ?? resumeGenerationConfig.defaults.template;
 
-  if (template !== DEFAULT_RESUME_TEMPLATE) {
-    throw new Error(`Resume template must be "${DEFAULT_RESUME_TEMPLATE}".`);
+  if (!isResumeTemplateId(template)) {
+    throw new Error(`Resume template must be "${resumeGenerationConfig.defaults.template}".`);
   }
 
   return template;
@@ -123,7 +127,7 @@ function resolveRequestedModels(input: GenerateResumeDatasetInput): string[] {
     return [input.llmModel.trim()];
   }
 
-  return env.openRouterModels;
+  return getDefaultResumeLlmModels();
 }
 
 async function ensureOutputDirectories(mode: ResumeGenerationMode) {
@@ -258,12 +262,12 @@ function createTextGenerationMetadata(
   }
 
   return {
-    strategy: 'faker-base-with-llm-enrichment',
-    provider: 'openrouter',
+    strategy: resumeGenerationConfig.textGeneration.strategy,
+    provider: resumeGenerationConfig.textGeneration.provider,
     model: models[0],
     models,
     usedModels,
-    batchSize: env.resumeTextBatchSize,
+    batchSize: resumeGenerationConfig.textGeneration.batchSize,
     enrichedProfileCount,
     localProfileCount,
   };
@@ -271,8 +275,8 @@ function createTextGenerationMetadata(
 
 function createImageGenerationMetadata(count: number): ResumeImageGenerationMetadata {
   return {
-    provider: 'openrouter',
-    model: env.openRouterImageModel,
+    provider: resumeGenerationConfig.imageGeneration.provider,
+    model: resumeGenerationConfig.imageGeneration.model,
     generatedPhotoCount: count,
   };
 }
@@ -285,7 +289,7 @@ export async function generateResumeDataset(
   }
 
   const generationStartedAt = Date.now();
-  const count = clampResumeCount(input.count ?? DEFAULT_RESUME_COUNT);
+  const count = clampResumeCount(input.count ?? resumeGenerationConfig.defaults.count);
   const mode = resolveGenerationMode(input);
   const language = resolveDocumentLanguage(input);
   const template = resolveResumeTemplate(input);
@@ -309,7 +313,7 @@ export async function generateResumeDataset(
   const profiles = await generateResumeProfiles({
     drafts: candidateDrafts.map((candidate) => createProfileDraft(candidate)),
     models: llmModels,
-    batchSize: env.resumeTextBatchSize,
+    batchSize: resumeGenerationConfig.textGeneration.batchSize,
   });
   console.log(
     `[Resume Generator] Resume text ready: ${profiles.size}/${candidateDrafts.length} (elapsedMs=${Date.now() - llmStartedAt}).`
@@ -329,7 +333,7 @@ export async function generateResumeDataset(
   for (const [candidateIndex, candidate] of candidates.entries()) {
     const photoStartedAt = Date.now();
     console.log(
-      `[Resume Photos] Generating photo ${candidateIndex + 1}/${candidates.length} for ${candidate.id} using openrouter/${env.openRouterImageModel}`
+      `[Resume Photos] Generating photo ${candidateIndex + 1}/${candidates.length} for ${candidate.id} using ${resumeGenerationConfig.imageGeneration.provider}/${resumeGenerationConfig.imageGeneration.model}`
     );
     const photo = await generateResumePhoto(candidate);
     candidatesWithPhotos.push({
@@ -425,7 +429,7 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
         ? manifest.lastTextGeneration.models
         : manifest.lastTextGeneration?.model
           ? [manifest.lastTextGeneration.model]
-          : env.openRouterModels;
+          : getDefaultResumeLlmModels();
     const usedModels =
       manifest.lastTextGeneration?.usedModels && manifest.lastTextGeneration.usedModels.length > 0
         ? manifest.lastTextGeneration.usedModels
@@ -433,7 +437,7 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
 
     return {
       ...manifest,
-      lastTemplate: manifest.lastTemplate ?? DEFAULT_RESUME_TEMPLATE,
+      lastTemplate: manifest.lastTemplate ?? resumeGenerationConfig.defaults.template,
       lastTextGeneration: manifest.lastTextGeneration
         ? {
             ...manifest.lastTextGeneration,
@@ -444,11 +448,15 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
               manifest.lastTextGeneration.localProfileCount ??
               Math.max(0, (manifest.resumes?.length ?? 0) - (manifest.lastTextGeneration.enrichedProfileCount ?? 0)),
           }
-        : createTextGenerationMetadata(env.openRouterModels, env.openRouterModels, []),
+        : createTextGenerationMetadata(
+            getDefaultResumeLlmModels(),
+            getDefaultResumeLlmModels(),
+            []
+          ),
       lastImageGeneration: manifest.lastImageGeneration ?? createImageGenerationMetadata(0),
       resumes: (manifest.resumes ?? []).map((resume) => ({
         ...resume,
-        template: resume.template ?? DEFAULT_RESUME_TEMPLATE,
+        template: resume.template ?? resumeGenerationConfig.defaults.template,
       })),
     } as ResumeDatasetManifest;
   } catch {

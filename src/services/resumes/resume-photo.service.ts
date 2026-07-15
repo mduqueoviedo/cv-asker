@@ -1,4 +1,5 @@
 import type { CandidateResume, ResumePhotoAsset } from '../../types/resume.js';
+import { resumeGenerationConfig } from '../../config/resume-generation.js';
 import { generateImage } from '../ai/image-generation.service.js';
 
 const CREATIVE_VARIANTS = [
@@ -41,10 +42,10 @@ export async function generateResumePhoto(candidate: CandidateResume): Promise<R
   const image = await generateImage({
     prompt,
     mimeType: 'image/jpeg',
-    aspectRatio: '4:5',
-    imageSize: '768x960',
-    quality: 'low',
-    outputCompression: 70,
+    aspectRatio: resumeGenerationConfig.imageGeneration.aspectRatio,
+    imageSize: resumeGenerationConfig.imageGeneration.imageSize,
+    quality: resumeGenerationConfig.imageGeneration.quality,
+    outputCompression: resumeGenerationConfig.imageGeneration.outputCompression,
   });
 
   return {

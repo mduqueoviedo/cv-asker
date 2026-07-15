@@ -1,4 +1,4 @@
-import { env } from '../../config/env.js';
+import { resumeGenerationConfig } from '../../config/resume-generation.js';
 import { generateImageWithOpenRouter } from './openrouter-image.service.js';
 
 export interface GenerateImageInput {
@@ -23,6 +23,6 @@ export interface GeneratedImage {
 export async function generateImage(input: GenerateImageInput): Promise<GeneratedImage> {
   return generateImageWithOpenRouter({
     ...input,
-    model: input.model ?? env.openRouterImageModel,
+    model: input.model ?? resumeGenerationConfig.imageGeneration.model,
   });
 }

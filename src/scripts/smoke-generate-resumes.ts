@@ -1,6 +1,12 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
-import { env, hasOpenRouterApiKey } from '../config/env.js';
+import { hasOpenRouterApiKey } from '../config/env.js';
+import {
+  getDefaultResumeLlmModels,
+  isResumeDocumentLanguage,
+  isResumeTemplateId,
+  resumeGenerationConfig,
+} from '../config/resume-generation.js';
 import { generateResumeDataset } from '../services/resumes/resume-generator.service.js';
 import type {
   ResumeDocumentLanguage,
@@ -32,10 +38,10 @@ function parseModelList(value: string): string[] {
 
 function parseArguments(argv: string[]): SmokeOptions {
   const options: SmokeOptions = {
-    count: 25,
-    mode: 'replace',
-    language: 'es-ES',
-    template: 'aurora-split',
+    count: resumeGenerationConfig.defaults.count,
+    mode: resumeGenerationConfig.defaults.mode,
+    language: resumeGenerationConfig.defaults.language,
+    template: resumeGenerationConfig.defaults.template,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -59,7 +65,7 @@ function parseArguments(argv: string[]): SmokeOptions {
     }
 
     if (argument === '--language' && nextValue) {
-      if (nextValue !== 'en' && nextValue !== 'es-ES') {
+      if (!isResumeDocumentLanguage(nextValue)) {
         throw new Error('`--language` must be either `en` or `es-ES`.');
       }
 
@@ -69,8 +75,10 @@ function parseArguments(argv: string[]): SmokeOptions {
     }
 
     if (argument === '--template' && nextValue) {
-      if (nextValue !== 'aurora-split') {
-        throw new Error('`--template` must be `aurora-split`.');
+      if (!isResumeTemplateId(nextValue)) {
+        throw new Error(
+          `\`--template\` must be \`${resumeGenerationConfig.defaults.template}\`.`
+        );
       }
 
       options.template = nextValue;
@@ -104,14 +112,14 @@ function parseArguments(argv: string[]): SmokeOptions {
 }
 
 function printHelp() {
-  console.log(`Usage: pnpm smoke:resumes -- [options]
+  console.log(`Usage: pnpm generate -- [options]
 
 Options:
-  --count <number>       Number of CVs to generate. Default: 25
+  --count <number>       Number of CVs to generate. Default: ${resumeGenerationConfig.defaults.count}
   --mode <replace|append>
-                         Generation mode. Default: replace
-  --language <en|es-ES>  Resume language. Default: es-ES
-  --template <id>        Resume template. Default: aurora-split
+                         Generation mode. Default: ${resumeGenerationConfig.defaults.mode}
+  --language <en|es-ES>  Resume language. Default: ${resumeGenerationConfig.defaults.language}
+  --template <id>        Resume template. Default: ${resumeGenerationConfig.defaults.template}
   --model <name>         Optional OpenRouter model override
   --models <a,b,c>       Optional comma-separated OpenRouter fallback list
   --help                 Show this help message
@@ -144,14 +152,11 @@ async function main() {
 
   const effectiveModels =
     options.llmModels ??
-    (options.llmModel ? [options.llmModel] : env.openRouterModels);
+    (options.llmModel ? [options.llmModel] : getDefaultResumeLlmModels());
 
   console.log('[Smoke] Preflight checks passed.');
   if (!hasOpenRouterApiKey()) {
     throw new Error('Image generation credentials are required to generate realistic resume photos.');
-  }
-  if (!hasOpenRouterApiKey()) {
-    console.log('[Smoke] OPENROUTER_API_KEY not found. Running with local resume profiles only.');
   }
   console.log('[Smoke] Starting resume generation...');
   console.log(

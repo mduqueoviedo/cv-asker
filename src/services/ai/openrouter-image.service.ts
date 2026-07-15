@@ -1,4 +1,5 @@
 import { env, getOpenRouterApiKey } from '../../config/env.js';
+import { resumeGenerationConfig } from '../../config/resume-generation.js';
 import type { GeneratedImage, GenerateImageInput } from './image-generation.service.js';
 import { fetchAiJsonWithRetry } from './ai-http.service.js';
 
@@ -25,7 +26,7 @@ function createEmptyImagePayloadError(data: OpenRouterImageResponse, model: stri
 export async function generateImageWithOpenRouter(
   input: GenerateImageInput
 ): Promise<GeneratedImage> {
-  const model = input.model ?? env.openRouterImageModel;
+  const model = input.model ?? resumeGenerationConfig.imageGeneration.model;
   const mimeType = input.mimeType ?? 'image/jpeg';
   const requestStartedAt = Date.now();
 
@@ -34,7 +35,7 @@ export async function generateImageWithOpenRouter(
   );
 
   const data = await fetchAiJsonWithRetry<OpenRouterImageResponse>({
-    url: env.openRouterImagesApiUrl,
+    url: resumeGenerationConfig.openRouter.imagesApiUrl,
     method: 'POST',
     headers: {
       Authorization: `Bearer ${getOpenRouterApiKey()}`,
@@ -45,15 +46,16 @@ export async function generateImageWithOpenRouter(
     body: JSON.stringify({
       model,
       prompt: input.prompt,
-      aspect_ratio: input.aspectRatio ?? '4:5',
-      size: input.imageSize ?? '768x960',
-      quality: input.quality ?? 'low',
+      aspect_ratio: input.aspectRatio ?? resumeGenerationConfig.imageGeneration.aspectRatio,
+      size: input.imageSize ?? resumeGenerationConfig.imageGeneration.imageSize,
+      quality: input.quality ?? resumeGenerationConfig.imageGeneration.quality,
       output_format: resolveOutputFormat(mimeType),
-      output_compression: input.outputCompression ?? 70,
+      output_compression:
+        input.outputCompression ?? resumeGenerationConfig.imageGeneration.outputCompression,
     }),
-    timeoutMs: env.aiRequestTimeoutMs,
-    maxRetries: env.aiRequestMaxRetries,
-    baseDelayMs: env.aiRequestBaseDelayMs,
+    timeoutMs: resumeGenerationConfig.aiRequest.timeoutMs,
+    maxRetries: resumeGenerationConfig.aiRequest.maxRetries,
+    baseDelayMs: resumeGenerationConfig.aiRequest.baseDelayMs,
   });
 
   const firstImage = data.data?.[0];

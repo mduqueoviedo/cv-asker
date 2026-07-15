@@ -1,4 +1,8 @@
 import { env, getOpenRouterApiKey } from '../../config/env.js';
+import {
+  getDefaultResumeLlmModel,
+  resumeGenerationConfig,
+} from '../../config/resume-generation.js';
 import { fetchAiJsonWithRetry } from './ai-http.service.js';
 import type {
   OpenRouterChatCompletionResponse,
@@ -63,7 +67,7 @@ function createEmptyPayloadError(
 export async function generateTextCompletion(
   input: GenerateTextCompletionInput
 ): Promise<string> {
-  const model = input.model ?? env.openRouterModel;
+  const model = input.model ?? getDefaultResumeLlmModel();
   const requestStartedAt = Date.now();
   const messages: OpenRouterMessage[] = [
     ...(input.systemInstruction
@@ -80,7 +84,7 @@ export async function generateTextCompletion(
   );
 
   const data = await fetchAiJsonWithRetry<OpenRouterChatCompletionResponse>({
-    url: env.openRouterApiUrl,
+    url: resumeGenerationConfig.openRouter.chatApiUrl,
     method: 'POST',
     headers: {
       Authorization: `Bearer ${getOpenRouterApiKey()}`,
@@ -91,14 +95,14 @@ export async function generateTextCompletion(
     body: JSON.stringify({
       model,
       messages,
-      max_tokens: input.maxTokens ?? env.aiCompletionMaxTokens,
+      max_tokens: input.maxTokens ?? resumeGenerationConfig.textGeneration.completionMaxTokens,
       response_format: input.responseFormat,
       plugins: input.plugins,
       provider: input.provider,
     }),
-    timeoutMs: env.aiRequestTimeoutMs,
-    maxRetries: env.aiRequestMaxRetries,
-    baseDelayMs: env.aiRequestBaseDelayMs,
+    timeoutMs: resumeGenerationConfig.aiRequest.timeoutMs,
+    maxRetries: resumeGenerationConfig.aiRequest.maxRetries,
+    baseDelayMs: resumeGenerationConfig.aiRequest.baseDelayMs,
   });
   const firstChoice = data.choices?.[0];
   const completionText =
