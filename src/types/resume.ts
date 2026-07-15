@@ -3,6 +3,9 @@ export interface ResumeLanguage {
   level: string;
 }
 
+export type ResumeDocumentLanguage = 'en' | 'es-ES';
+export type ResumeTemplateId = 'aurora-split';
+
 export interface ResumeEducationEntry {
   degree: string;
   institution: string;
@@ -30,6 +33,7 @@ export interface ResumePhotoPalette {
 
 export interface CandidateResume {
   id: string;
+  documentLanguage: ResumeDocumentLanguage;
   fullName: string;
   age: number;
   primaryRole: string;
@@ -51,8 +55,11 @@ export interface CandidateResume {
 
 export interface GeneratedResumeArtifact {
   id: string;
+  documentLanguage: ResumeDocumentLanguage;
   fullName: string;
   primaryRole: string;
+  llmModel: string;
+  template: ResumeTemplateId;
   pdfFileName: string;
   pdfFilePath: string;
   metadataFileName: string;
@@ -65,6 +72,16 @@ export interface GenerateResumeDatasetInput {
   count?: number;
   mode?: ResumeGenerationMode;
   cleanOutput?: boolean;
+  language?: ResumeDocumentLanguage;
+  llmModel?: string;
+  template?: ResumeTemplateId;
+}
+
+export interface ResumeTextGenerationMetadata {
+  strategy: 'faker-plus-llm';
+  provider: 'openrouter';
+  model: string;
+  batchSize: number;
 }
 
 export interface ResumeDatasetManifest {
@@ -72,6 +89,9 @@ export interface ResumeDatasetManifest {
   generatedAt: string;
   lastGenerationMode: ResumeGenerationMode;
   lastBatchCount: number;
+  lastBatchLanguage: ResumeDocumentLanguage;
+  lastTemplate: ResumeTemplateId;
+  lastTextGeneration: ResumeTextGenerationMetadata;
   outputDirectory: string;
   pdfDirectory: string;
   metadataDirectory: string;

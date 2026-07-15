@@ -8,6 +8,7 @@ import type {
 export interface GenerateTextCompletionInput {
   prompt: string;
   systemInstruction?: string;
+  model?: string;
 }
 
 export async function generateTextCompletion(
@@ -30,7 +31,7 @@ export async function generateTextCompletion(
       'X-Title': env.appTitle,
     },
     body: JSON.stringify({
-      model: env.openRouterModel,
+      model: input.model ?? env.openRouterModel,
       messages,
     }),
     timeoutMs: env.aiRequestTimeoutMs,

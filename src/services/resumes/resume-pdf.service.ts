@@ -13,6 +13,55 @@ interface PortraitImage {
   data: Buffer;
 }
 
+interface ResumePdfLabels {
+  contact: string;
+  profile: string;
+  age: string;
+  experience: string;
+  experienceUnit: string;
+  highlights: string;
+  certifications: string;
+  professionalSummary: string;
+  workExperience: string;
+  coreTechnologies: string;
+  education: string;
+  languages: string;
+  candidateId: string;
+}
+
+const PDF_LABELS: Record<CandidateResume['documentLanguage'], ResumePdfLabels> = {
+  en: {
+    contact: 'CONTACT',
+    profile: 'PROFILE',
+    age: 'Age',
+    experience: 'Experience',
+    experienceUnit: 'years',
+    highlights: 'HIGHLIGHTS',
+    certifications: 'CERTIFICATIONS',
+    professionalSummary: 'PROFESSIONAL SUMMARY',
+    workExperience: 'WORK EXPERIENCE',
+    coreTechnologies: 'CORE TECHNOLOGIES',
+    education: 'EDUCATION',
+    languages: 'LANGUAGES',
+    candidateId: 'Candidate ID',
+  },
+  'es-ES': {
+    contact: 'CONTACTO',
+    profile: 'PERFIL',
+    age: 'Edad',
+    experience: 'Experiencia',
+    experienceUnit: 'años',
+    highlights: 'PUNTOS CLAVE',
+    certifications: 'CERTIFICACIONES',
+    professionalSummary: 'RESUMEN PROFESIONAL',
+    workExperience: 'EXPERIENCIA PROFESIONAL',
+    coreTechnologies: 'TECNOLOGÍAS PRINCIPALES',
+    education: 'FORMACIÓN',
+    languages: 'IDIOMAS',
+    candidateId: 'ID de candidato',
+  },
+};
+
 function rgb(color: [number, number, number]): string {
   return color.map((channel) => (channel / 255).toFixed(3)).join(' ');
 }
@@ -282,6 +331,7 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
   const commands: string[] = [];
   const portrait = createPortraitImage(candidate);
   const compressedPortrait = deflateSync(portrait.data);
+  const labels = PDF_LABELS[candidate.documentLanguage];
   const sidebarColor: [number, number, number] = [24, 36, 58];
   const softTextColor: [number, number, number] = [235, 239, 245];
   const bodyTextColor: [number, number, number] = [45, 52, 63];
@@ -297,7 +347,7 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
   commands.push('Q');
 
   let sidebarCursor = 216;
-  pushTextLine(commands, 'CONTACT', 20, sidebarCursor, 'F2', 12, candidate.photoPalette.accent);
+  pushTextLine(commands, labels.contact, 20, sidebarCursor, 'F2', 12, candidate.photoPalette.accent);
   sidebarCursor += 22;
   sidebarCursor = pushWrappedText(commands, candidate.email, {
     x: 20,
@@ -355,13 +405,21 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
   }
 
   sidebarCursor += 18;
-  pushTextLine(commands, 'PROFILE', 20, sidebarCursor, 'F2', 12, candidate.photoPalette.accent);
+  pushTextLine(commands, labels.profile, 20, sidebarCursor, 'F2', 12, candidate.photoPalette.accent);
   sidebarCursor += 22;
-  pushTextLine(commands, `Age: ${candidate.age}`, 20, sidebarCursor, 'F1', 9, softTextColor);
+  pushTextLine(
+    commands,
+    `${labels.age}: ${candidate.age}`,
+    20,
+    sidebarCursor,
+    'F1',
+    9,
+    softTextColor
+  );
   sidebarCursor += 16;
   pushTextLine(
     commands,
-    `Experience: ${candidate.totalExperienceYears} years`,
+    `${labels.experience}: ${candidate.totalExperienceYears} ${labels.experienceUnit}`,
     20,
     sidebarCursor,
     'F1',
@@ -370,7 +428,7 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
   );
 
   sidebarCursor += 24;
-  pushTextLine(commands, 'HIGHLIGHTS', 20, sidebarCursor, 'F2', 12, candidate.photoPalette.accent);
+  pushTextLine(commands, labels.highlights, 20, sidebarCursor, 'F2', 12, candidate.photoPalette.accent);
   sidebarCursor += 20;
   candidate.highlights.slice(0, 3).forEach((highlight) => {
     sidebarCursor = pushWrappedText(commands, `- ${highlight}`, {
@@ -387,7 +445,7 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
   });
 
   sidebarCursor += 10;
-  pushTextLine(commands, 'CERTIFICATIONS', 20, sidebarCursor, 'F2', 12, candidate.photoPalette.accent);
+  pushTextLine(commands, labels.certifications, 20, sidebarCursor, 'F2', 12, candidate.photoPalette.accent);
   sidebarCursor += 20;
   candidate.certifications.slice(0, 2).forEach((certification) => {
     sidebarCursor = pushWrappedText(commands, `- ${certification}`, {
@@ -407,7 +465,7 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
   pushTextLine(commands, candidate.primaryRole, CONTENT_LEFT, 89, 'F1', 13, candidate.photoPalette.accent);
 
   let contentCursor = 140;
-  pushTextLine(commands, 'PROFESSIONAL SUMMARY', CONTENT_LEFT, contentCursor, 'F2', 12, [34, 44, 57]);
+  pushTextLine(commands, labels.professionalSummary, CONTENT_LEFT, contentCursor, 'F2', 12, [34, 44, 57]);
   contentCursor += 20;
   contentCursor = pushWrappedText(commands, candidate.summary, {
     x: CONTENT_LEFT,
@@ -421,7 +479,7 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
   });
 
   contentCursor += 18;
-  pushTextLine(commands, 'WORK EXPERIENCE', CONTENT_LEFT, contentCursor, 'F2', 12, [34, 44, 57]);
+  pushTextLine(commands, labels.workExperience, CONTENT_LEFT, contentCursor, 'F2', 12, [34, 44, 57]);
   contentCursor += 22;
 
   candidate.experience.slice(0, 3).forEach((entry) => {
@@ -455,7 +513,7 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
     contentCursor += 8;
   });
 
-  pushTextLine(commands, 'CORE TECHNOLOGIES', CONTENT_LEFT, contentCursor, 'F2', 12, [34, 44, 57]);
+  pushTextLine(commands, labels.coreTechnologies, CONTENT_LEFT, contentCursor, 'F2', 12, [34, 44, 57]);
   contentCursor += 20;
   contentCursor = pushWrappedText(commands, candidate.coreTechnologies.join(' | '), {
     x: CONTENT_LEFT,
@@ -469,7 +527,7 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
   });
 
   contentCursor += 18;
-  pushTextLine(commands, 'EDUCATION', CONTENT_LEFT, contentCursor, 'F2', 12, [34, 44, 57]);
+  pushTextLine(commands, labels.education, CONTENT_LEFT, contentCursor, 'F2', 12, [34, 44, 57]);
   contentCursor += 22;
   candidate.education.slice(0, 2).forEach((entry) => {
     pushTextLine(
@@ -494,7 +552,7 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
     contentCursor += 20;
   });
 
-  pushTextLine(commands, 'LANGUAGES', CONTENT_LEFT, contentCursor, 'F2', 12, [34, 44, 57]);
+  pushTextLine(commands, labels.languages, CONTENT_LEFT, contentCursor, 'F2', 12, [34, 44, 57]);
   contentCursor += 20;
   pushWrappedText(
     commands,
@@ -513,7 +571,7 @@ export function renderResumePdf(candidate: CandidateResume): Buffer {
 
   pushTextLine(
     commands,
-    `Candidate ID: ${candidate.id}`,
+    `${labels.candidateId}: ${candidate.id}`,
     CONTENT_LEFT,
     804,
     'F1',

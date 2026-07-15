@@ -1,12 +1,12 @@
 # CV Asker
 
-CV Asker is a local-first full-stack recruitment prototype. The project combines realistic PDF resume generation, a hybrid RAG ingestion pipeline, and a conversational interface that can answer questions about candidate profiles with source attribution.
+CV Asker is a local-first full-stack recruitment prototype. The project combines realistic resume generation, a hybrid RAG ingestion pipeline, and a conversational interface that can answer questions about candidate profiles with source attribution.
 
 ## Project Status
 
 - The backend is running in Express + TypeScript with ESM and `NodeNext`.
 - The first implemented workflow is local resume dataset generation.
-- Generated resumes are written to disk as PDFs, alongside JSON metadata derived from the same fresh dataset.
+- Generated resumes are written to disk as PDFs plus JSON metadata derived from the same fresh dataset.
 - The RAG ingestion and chat layers are still pending.
 - Project requirements are documented in `docs/project-requirements.md`.
 
@@ -25,14 +25,15 @@ CV Asker is a local-first full-stack recruitment prototype. The project combines
 - Modular route/controller/service structure under `src/`.
 - OpenRouter integration through native `fetch`.
 - Shared AI HTTP retry layer with timeout and exponential backoff.
-- Resume generation service prepared to swap its current static seed provider for a future `faker`-based provider and later AI-assisted text generation.
+- Resume generation service now uses `faker` only for personal seed data and delegates professional resume content to OpenRouter.
+- Resume datasets can be generated in `en` or `es-ES`.
 
 ## Architecture Overview
 
 ```text
 Resume generation API
   -> build fresh fake candidate dataset
-  -> render PDFs and derived JSON metadata
+  -> render styled resume templates into PDFs and derived JSON metadata
   -> persist artifacts locally
   -> WIP: extract PDF text
   -> WIP: chunk and enrich candidate content
@@ -51,8 +52,6 @@ The backend starts on `http://localhost:3000` by default.
 ## API Endpoints
 
 - `GET /`: Basic service status payload.
-- `GET /api/system/health`: Health check endpoint.
-- `GET /api/system/test-ai`: OpenRouter connectivity smoke test.
 - `GET /api/resumes`: Inspect whether a generated resume dataset already exists on disk.
 - `POST /api/resumes/generate`: Generate a fresh batch of fake resumes as PDFs plus JSON metadata.
 
@@ -60,7 +59,9 @@ The backend starts on `http://localhost:3000` by default.
 
 - `src/services/resumes/resume-generator.service.ts`: implemented
 - `src/services/resumes/resume-pdf.service.ts`: implemented
-- `src/services/resumes/resume-seed-data.provider.ts`: implemented
+- `src/services/resumes/resume-html.service.ts`: implemented
+- `src/services/resumes/resume-faker-data.provider.ts`: implemented
+- `src/services/resumes/resume-llm-text.service.ts`: implemented
 - `src/services/ai/ai-http.service.ts`: implemented
 - RAG ingestion services: `WIP`
 - Retrieval services: `WIP`
@@ -73,22 +74,31 @@ The backend starts on `http://localhost:3000` by default.
 - `replace` is the default mode and clears the previous output before generating a fresh dataset.
 - `append` keeps the existing dataset and adds a new batch of resumes without reusing candidate ids or file names.
 - The generator enforces the project requirement range of 25-30 resumes per generation run.
+- Personal seed data comes from `faker`, while role, technologies, languages, education, experience, certifications, summary, and highlights come from OpenRouter in sequential batches.
+- Avoid hardcoded role catalogs, university lists, certification lists, and language profiles in local code.
+- Supported document languages are `en` and `es-ES`.
+- Resume templates are now modeled explicitly so the renderer can move to HTML-to-PDF later without changing the dataset shape.
+- HTML should be treated as a transient render step and cleaned up once its PDF counterpart has been produced.
+- The current default template is `aurora-split`.
 - Output is written under `storage/generated-resumes/`.
 - JSON metadata is stored only as a derived artifact of the fresh resumes, to support later ingestion steps.
-- The current seed data comes from an internal provider layer, so it can be replaced later without rewriting the generator flow.
+- Each generated artifact records the language and model used for its resume copy.
 
 Example request body:
 
 ```json
 {
   "count": 28,
-  "mode": "replace"
+  "mode": "replace",
+  "language": "es-ES",
+  "llmModel": "meta-llama/llama-3.3-70b-instruct:free",
+  "template": "aurora-split"
 }
 ```
 
 ## Environment Variables
 
-Copy `.env.example` into `.env` and provide a valid OpenRouter API key.
+Copy `.env.example` into `.env` and provide a valid OpenRouter API key when working on AI integration or model evaluation.
 
 - `PORT`: Local backend port.
 - `OPENROUTER_API_KEY`: API key used for chat completions.
@@ -96,13 +106,18 @@ Copy `.env.example` into `.env` and provide a valid OpenRouter API key.
 - `AI_REQUEST_TIMEOUT_MS`: Optional timeout per AI request. Defaults to `20000`.
 - `AI_REQUEST_MAX_RETRIES`: Optional retry count for retryable AI API failures. Defaults to `2`.
 - `AI_REQUEST_BASE_DELAY_MS`: Optional base delay for exponential backoff. Defaults to `600`.
+- `RESUME_TEXT_BATCH_SIZE`: Number of CVs generated per LLM request. Defaults to `4`.
+- `RESUME_DEFAULT_LANGUAGE`: Default resume language when the API request does not send one. Supported values: `en`, `es-ES`.
+
+## OpenRouter Model Notes
+
+- Working research notes for free OpenRouter models live in `docs/openrouter-model-notes.md`.
+- Treat that document as a shortlist for experimentation, not a guarantee of current availability or performance.
 
 ## Next Planned Steps
 
-- Replace the static resume seed provider with a more realistic data provider such as `faker`.
-- Use `faker` locales for multilingual structured data where it improves realism and consistency.
-- Add AI-assisted text generation for richer summaries, experience, and profile details.
-- Improve resume realism with more varied layouts, styling, and document structure.
+- Replace the handwritten PDF renderer with an HTML-to-PDF pipeline based on browser automation, keeping HTML as a temporary intermediate artifact only.
+- Add more resume templates and per-template layout rules for short and long CVs.
 - Improve generated text quality so candidate profiles read less templated and more human.
 - Integrate an external image generation API to create realistic-but-fake profile photos for resumes.
 - Build the PDF ingestion and hybrid RAG pipeline on top of the freshly generated local dataset.

@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import type { ResumeDocumentLanguage } from '../types/resume.js';
 
 dotenv.config();
 
@@ -8,6 +9,8 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_AI_REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_AI_REQUEST_MAX_RETRIES = 2;
 const DEFAULT_AI_REQUEST_BASE_DELAY_MS = 600;
+const DEFAULT_RESUME_TEXT_BATCH_SIZE = 4;
+const DEFAULT_RESUME_LANGUAGE: ResumeDocumentLanguage = 'en';
 
 function parsePort(value: string | undefined): number {
   if (!value) {
@@ -23,7 +26,11 @@ function parsePort(value: string | undefined): number {
   return parsedPort;
 }
 
-function parsePositiveInteger(value: string | undefined, defaultValue: number, variableName: string): number {
+function parsePositiveInteger(
+  value: string | undefined,
+  defaultValue: number,
+  variableName: string
+): number {
   if (!value) {
     return defaultValue;
   }
@@ -35,6 +42,22 @@ function parsePositiveInteger(value: string | undefined, defaultValue: number, v
   }
 
   return parsedValue;
+}
+
+function parseResumeDocumentLanguage(
+  value: string | undefined,
+  defaultValue: ResumeDocumentLanguage,
+  variableName: string
+): ResumeDocumentLanguage {
+  if (!value) {
+    return defaultValue;
+  }
+
+  if (value !== 'en' && value !== 'es-ES') {
+    throw new Error(`${variableName} must be either "en" or "es-ES".`);
+  }
+
+  return value;
 }
 
 export const env = {
@@ -56,6 +79,16 @@ export const env = {
     process.env.AI_REQUEST_BASE_DELAY_MS,
     DEFAULT_AI_REQUEST_BASE_DELAY_MS,
     'AI_REQUEST_BASE_DELAY_MS'
+  ),
+  resumeTextBatchSize: parsePositiveInteger(
+    process.env.RESUME_TEXT_BATCH_SIZE,
+    DEFAULT_RESUME_TEXT_BATCH_SIZE,
+    'RESUME_TEXT_BATCH_SIZE'
+  ),
+  defaultResumeLanguage: parseResumeDocumentLanguage(
+    process.env.RESUME_DEFAULT_LANGUAGE,
+    DEFAULT_RESUME_LANGUAGE,
+    'RESUME_DEFAULT_LANGUAGE'
   ),
 };
 

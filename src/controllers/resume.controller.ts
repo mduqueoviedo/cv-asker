@@ -3,12 +3,19 @@ import {
   generateResumeDataset,
   getResumeDatasetStorageSnapshot,
 } from '../services/resumes/resume-generator.service.js';
-import type { ResumeGenerationMode } from '../types/resume.js';
+import type {
+  ResumeDocumentLanguage,
+  ResumeGenerationMode,
+  ResumeTemplateId,
+} from '../types/resume.js';
 
 interface GenerateResumeRequestBody {
   count?: number;
   mode?: ResumeGenerationMode;
   cleanOutput?: boolean;
+  language?: ResumeDocumentLanguage;
+  llmModel?: string;
+  template?: ResumeTemplateId;
 }
 
 export const generateResumes: RequestHandler<
@@ -21,6 +28,9 @@ export const generateResumes: RequestHandler<
       count: request.body?.count,
       mode: request.body?.mode,
       cleanOutput: request.body?.cleanOutput,
+      language: request.body?.language,
+      llmModel: request.body?.llmModel,
+      template: request.body?.template,
     });
 
     response.status(201).json({
