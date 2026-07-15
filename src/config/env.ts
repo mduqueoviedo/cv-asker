@@ -4,12 +4,17 @@ import type { ResumeDocumentLanguage } from '../types/resume.js';
 dotenv.config();
 
 const DEFAULT_PORT = 3000;
-const DEFAULT_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+const DEFAULT_OPENROUTER_MODELS = [
+  'google/gemini-2.5-flash-lite',
+  'google/gemma-3-27b-it:free',
+  'openai/gpt-oss-20b:free',
+] as const;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_AI_REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_AI_REQUEST_MAX_RETRIES = 2;
 const DEFAULT_AI_REQUEST_BASE_DELAY_MS = 600;
-const DEFAULT_RESUME_TEXT_BATCH_SIZE = 4;
+const DEFAULT_AI_COMPLETION_MAX_TOKENS = 600;
+const DEFAULT_RESUME_TEXT_BATCH_SIZE = 2;
 const DEFAULT_RESUME_LANGUAGE: ResumeDocumentLanguage = 'en';
 
 function parsePort(value: string | undefined): number {
@@ -44,6 +49,33 @@ function parsePositiveInteger(
   return parsedValue;
 }
 
+function parseNonEmptyStringList(value: string, variableName: string): string[] {
+  const values = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (values.length === 0) {
+    throw new Error(`${variableName} must include at least one model id.`);
+  }
+
+  return [...new Set(values)];
+}
+
+function resolveOpenRouterModels(): string[] {
+  if (process.env.OPENROUTER_MODELS) {
+    return parseNonEmptyStringList(process.env.OPENROUTER_MODELS, 'OPENROUTER_MODELS');
+  }
+
+  if (process.env.OPENROUTER_MODEL?.trim()) {
+    return [process.env.OPENROUTER_MODEL.trim()];
+  }
+
+  return [...DEFAULT_OPENROUTER_MODELS];
+}
+
+const openRouterModels = resolveOpenRouterModels();
+
 function parseResumeDocumentLanguage(
   value: string | undefined,
   defaultValue: ResumeDocumentLanguage,
@@ -64,7 +96,8 @@ export const env = {
   appTitle: 'CV Asker',
   port: parsePort(process.env.PORT),
   openRouterApiUrl: OPENROUTER_API_URL,
-  openRouterModel: process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL,
+  openRouterModels,
+  openRouterModel: openRouterModels[0],
   aiRequestTimeoutMs: parsePositiveInteger(
     process.env.AI_REQUEST_TIMEOUT_MS,
     DEFAULT_AI_REQUEST_TIMEOUT_MS,
@@ -79,6 +112,11 @@ export const env = {
     process.env.AI_REQUEST_BASE_DELAY_MS,
     DEFAULT_AI_REQUEST_BASE_DELAY_MS,
     'AI_REQUEST_BASE_DELAY_MS'
+  ),
+  aiCompletionMaxTokens: parsePositiveInteger(
+    process.env.AI_COMPLETION_MAX_TOKENS,
+    DEFAULT_AI_COMPLETION_MAX_TOKENS,
+    'AI_COMPLETION_MAX_TOKENS'
   ),
   resumeTextBatchSize: parsePositiveInteger(
     process.env.RESUME_TEXT_BATCH_SIZE,
@@ -100,4 +138,8 @@ export function getOpenRouterApiKey(): string {
   }
 
   return apiKey;
+}
+
+export function hasOpenRouterApiKey(): boolean {
+  return Boolean(process.env.OPENROUTER_API_KEY?.trim());
 }

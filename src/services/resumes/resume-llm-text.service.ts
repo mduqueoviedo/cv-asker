@@ -1,15 +1,19 @@
+import { env, hasOpenRouterApiKey } from '../../config/env.js';
 import { generateTextCompletion } from '../ai/ai.service.js';
 import type {
   ResumeDocumentLanguage,
   ResumeEducationEntry,
   ResumeExperienceEntry,
+  ResumeGrammaticalGender,
   ResumeLanguage,
 } from '../../types/resume.js';
+import { createLocalResumeProfile } from './resume-local-profile.provider.js';
 
 export interface ResumeProfileDraft {
   id: string;
   documentLanguage: ResumeDocumentLanguage;
   fullName: string;
+  grammaticalGender: ResumeGrammaticalGender;
   age: number;
   location: string;
   totalExperienceYears: number;
@@ -17,6 +21,7 @@ export interface ResumeProfileDraft {
 
 export interface ResumeGeneratedProfile {
   id: string;
+  llmModel: string;
   primaryRole: string;
   summary: string;
   coreTechnologies: string[];
@@ -30,28 +35,22 @@ export interface ResumeGeneratedProfile {
 
 interface GenerateResumeProfilesInput {
   drafts: ResumeProfileDraft[];
-  model: string;
+  models: string[];
   batchSize: number;
 }
 
-interface LlmResumeProfileItem {
+interface LlmResumeNarrativeItem {
   id: string;
-  primaryRole: string;
   summary: string;
-  coreTechnologies: string[];
-  spokenLanguages: ResumeLanguage[];
-  education: ResumeEducationEntry[];
-  experience: ResumeExperienceEntry[];
   highlights: string[];
-  certifications: string[];
-  includePortfolio: boolean;
 }
 
-interface LlmResumeProfilePayload {
-  candidates: LlmResumeProfileItem[];
+interface LlmResumeNarrativePayload {
+  candidates: LlmResumeNarrativeItem[];
 }
 
-function chunkArray<T>(values: T[], size: number): T[][];
+const JSON_RESPONSE_HEALING_PLUGIN = { id: 'response-healing' } as const;
+
 function chunkArray<T>(values: T[], size: number): Array<T[]> {
   const chunks: Array<T[]> = [];
 
@@ -64,8 +63,8 @@ function chunkArray<T>(values: T[], size: number): Array<T[]> {
 
 function getLocaleInstruction(language: ResumeDocumentLanguage): string {
   return language === 'es-ES'
-    ? 'Write all resume content in professional Spanish from Spain.'
-    : 'Write all resume content in professional English.';
+    ? 'Write all generated text in professional Spanish from Spain.'
+    : 'Write all generated text in professional English.';
 }
 
 function extractJsonPayload(text: string): string {
@@ -74,13 +73,6 @@ function extractJsonPayload(text: string): string {
   if (trimmed.startsWith('```')) {
     const withoutFenceStart = trimmed.replace(/^```(?:json)?\s*/i, '');
     return withoutFenceStart.replace(/\s*```$/, '');
-  }
-
-  const arrayStart = trimmed.indexOf('[');
-  const arrayEnd = trimmed.lastIndexOf(']');
-
-  if (arrayStart >= 0 && arrayEnd > arrayStart) {
-    return trimmed.slice(arrayStart, arrayEnd + 1);
   }
 
   const objectStart = trimmed.indexOf('{');
@@ -93,8 +85,10 @@ function extractJsonPayload(text: string): string {
   throw new Error('Model response did not contain a JSON payload.');
 }
 
-function parseProfilePayload(text: string): LlmResumeProfilePayload {
-  const parsed = JSON.parse(extractJsonPayload(text)) as unknown;
+function parseNarrativePayload(text: string): LlmResumeNarrativePayload {
+  const jsonPayload = extractJsonPayload(text);
+  const normalizedPayload = jsonPayload.replace(/,\s*([}\]])/g, '$1');
+  const parsed = JSON.parse(normalizedPayload) as unknown;
 
   if (
     typeof parsed !== 'object' ||
@@ -105,7 +99,7 @@ function parseProfilePayload(text: string): LlmResumeProfilePayload {
     throw new Error('Model response did not match the expected JSON object schema.');
   }
 
-  return parsed as LlmResumeProfilePayload;
+  return parsed as LlmResumeNarrativePayload;
 }
 
 function assertNonEmptyString(value: unknown, fieldName: string, candidateId: string): string {
@@ -116,182 +110,56 @@ function assertNonEmptyString(value: unknown, fieldName: string, candidateId: st
   return value.trim();
 }
 
-function validateLanguages(value: unknown, candidateId: string): ResumeLanguage[] {
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error(`Model response must return at least one spoken language for candidate "${candidateId}".`);
-  }
-
-  return value.map((entry, index) => {
-    if (typeof entry !== 'object' || entry === null) {
-      throw new Error(
-        `Model response returned an invalid spoken language at index ${index} for candidate "${candidateId}".`
-      );
-    }
-
-    const language = entry as { name?: unknown; level?: unknown };
-
-    return {
-      name: assertNonEmptyString(language.name, `spoken language name at index ${index}`, candidateId),
-      level: assertNonEmptyString(language.level, `spoken language level at index ${index}`, candidateId),
-    };
-  });
-}
-
-function validateEducation(value: unknown, candidateId: string): ResumeEducationEntry[] {
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error(`Model response must return at least one education entry for candidate "${candidateId}".`);
-  }
-
-  return value.map((entry, index) => {
-    if (typeof entry !== 'object' || entry === null) {
-      throw new Error(
-        `Model response returned an invalid education entry at index ${index} for candidate "${candidateId}".`
-      );
-    }
-
-    const education = entry as {
-      degree?: unknown;
-      institution?: unknown;
-      location?: unknown;
-      startYear?: unknown;
-      endYear?: unknown;
-    };
-
-    if (
-      !Number.isInteger(education.startYear) ||
-      !Number.isInteger(education.endYear) ||
-      (education.startYear as number) > (education.endYear as number)
-    ) {
-      throw new Error(
-        `Model response returned invalid education years at index ${index} for candidate "${candidateId}".`
-      );
-    }
-
-    return {
-      degree: assertNonEmptyString(education.degree, `education degree at index ${index}`, candidateId),
-      institution: assertNonEmptyString(
-        education.institution,
-        `education institution at index ${index}`,
-        candidateId
-      ),
-      location: assertNonEmptyString(education.location, `education location at index ${index}`, candidateId),
-      startYear: education.startYear as number,
-      endYear: education.endYear as number,
-    };
-  });
-}
-
-function validateExperience(value: unknown, candidateId: string): ResumeExperienceEntry[] {
-  if (!Array.isArray(value) || value.length < 2) {
-    throw new Error(`Model response must return at least two experience entries for candidate "${candidateId}".`);
-  }
-
-  return value.map((entry, index) => {
-    if (typeof entry !== 'object' || entry === null) {
-      throw new Error(
-        `Model response returned an invalid experience entry at index ${index} for candidate "${candidateId}".`
-      );
-    }
-
-    const experience = entry as {
-      company?: unknown;
-      title?: unknown;
-      startDate?: unknown;
-      endDate?: unknown;
-      achievements?: unknown;
-    };
-
-    if (!Array.isArray(experience.achievements) || experience.achievements.length !== 2) {
-      throw new Error(
-        `Model response must return exactly two achievements for experience ${index + 1} of candidate "${candidateId}".`
-      );
-    }
-
-    return {
-      company: assertNonEmptyString(experience.company, `experience company at index ${index}`, candidateId),
-      title: assertNonEmptyString(experience.title, `experience title at index ${index}`, candidateId),
-      startDate: assertNonEmptyString(experience.startDate, `experience startDate at index ${index}`, candidateId),
-      endDate: assertNonEmptyString(experience.endDate, `experience endDate at index ${index}`, candidateId),
-      achievements: experience.achievements.map((achievement, achievementIndex) =>
-        assertNonEmptyString(
-          achievement,
-          `experience achievement ${achievementIndex + 1} at index ${index}`,
-          candidateId
-        )
-      ),
-    };
-  });
-}
-
-function validateStringList(
-  value: unknown,
-  fieldName: string,
-  candidateId: string,
-  minItems: number
-): string[] {
-  if (!Array.isArray(value) || value.length < minItems) {
-    throw new Error(
-      `Model response must return at least ${minItems} ${fieldName} item(s) for candidate "${candidateId}".`
-    );
+function validateHighlights(value: unknown, candidateId: string): string[] {
+  if (!Array.isArray(value) || value.length !== 3) {
+    throw new Error(`Model response must return exactly 3 highlights for candidate "${candidateId}".`);
   }
 
   return value.map((entry, index) =>
-    assertNonEmptyString(entry, `${fieldName} item at index ${index}`, candidateId)
+    assertNonEmptyString(entry, `highlight ${index + 1}`, candidateId)
   );
 }
 
-function validateProfileItem(
-  item: LlmResumeProfileItem,
-  draft: ResumeProfileDraft
-): ResumeGeneratedProfile {
-  if (item.id !== draft.id) {
-    throw new Error(`Model response returned candidate id "${item.id}" but expected "${draft.id}".`);
+function describeError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
   }
 
-  if (typeof item.includePortfolio !== 'boolean') {
-    throw new Error(`Model response returned an invalid includePortfolio flag for candidate "${draft.id}".`);
-  }
-
-  return {
-    id: draft.id,
-    primaryRole: assertNonEmptyString(item.primaryRole, 'primaryRole', draft.id),
-    summary: assertNonEmptyString(item.summary, 'summary', draft.id),
-    coreTechnologies: validateStringList(item.coreTechnologies, 'coreTechnologies', draft.id, 5),
-    spokenLanguages: validateLanguages(item.spokenLanguages, draft.id),
-    education: validateEducation(item.education, draft.id),
-    experience: validateExperience(item.experience, draft.id),
-    highlights: validateStringList(item.highlights, 'highlights', draft.id, 3).slice(0, 3),
-    certifications: Array.isArray(item.certifications)
-      ? item.certifications.map((certification, index) =>
-          assertNonEmptyString(certification, `certification at index ${index}`, draft.id)
-        )
-      : [],
-    includePortfolio: item.includePortfolio,
-  };
+  return String(error);
 }
 
-function createPrompt(batch: ResumeProfileDraft[]): string {
-  const language = batch[0]?.documentLanguage ?? 'en';
+function createPrompt(
+  batch: Array<{ draft: ResumeProfileDraft; profile: ResumeGeneratedProfile }>
+): string {
+  const language = batch[0]?.draft.documentLanguage ?? 'en';
+  const grammarInstruction =
+    language === 'es-ES'
+      ? 'Respect grammatical gender agreement in Spanish. If the provided primaryRole is feminine, keep the summary and highlights feminine. If it is masculine, keep them masculine.'
+      : 'Keep the summary and highlights aligned with the provided role wording and tone.';
 
   return [
-    'Generate complete synthetic technology resume profiles for each candidate below.',
+    'Improve the professional voice for these synthetic resumes.',
     getLocaleInstruction(language),
-    'Return raw JSON only. Do not wrap it in Markdown fences.',
-    'You may invent professional details that are not in the input, but they must remain realistic and internally consistent.',
-    'Every candidate must feel different from the others in role, career path, stack, education, and certifications.',
-    'Use the provided age, location, and totalExperienceYears as hard constraints.',
-    'Use exactly 3 highlights and exactly 2 achievements per experience entry.',
-    'Use 2 to 4 work experience entries per candidate.',
-    'Use 1 or 2 education entries per candidate.',
-    'Use 5 to 10 core technologies per candidate.',
-    'Set includePortfolio to true only when a public portfolio is plausible for that profile.',
-    'Format experience dates as "Mon YYYY" / "Present" in English or localized equivalents in Spanish.',
-    'Use this exact schema:',
-    '{ "candidates": [ { "id": "string", "primaryRole": "string", "summary": "string", "coreTechnologies": ["string"], "spokenLanguages": [{ "name": "string", "level": "string" }], "education": [{ "degree": "string", "institution": "string", "location": "string", "startYear": 2018, "endYear": 2022 }], "experience": [{ "company": "string", "title": "string", "startDate": "string", "endDate": "string", "achievements": ["string", "string"] }], "highlights": ["string", "string", "string"], "certifications": ["string"], "includePortfolio": true } ] }',
+    'Return valid JSON only. Do not wrap the response in Markdown fences.',
+    'For each candidate, write one professional summary of 30 to 55 words and exactly 3 concise highlights.',
+    'Keep the role, seniority, location, and technologies coherent with the input.',
+    grammarInstruction,
+    'Do not invent employers, certifications, or technologies that contradict the input.',
+    'Avoid filler, repeated openings, and exaggerated claims.',
+    'The response must be a single JSON object with a top-level "candidates" array.',
     '',
     JSON.stringify(
       {
-        candidates: batch,
+        candidates: batch.map(({ draft, profile }) => ({
+          id: draft.id,
+          documentLanguage: draft.documentLanguage,
+          grammaticalGender: draft.grammaticalGender,
+          location: draft.location,
+          totalExperienceYears: draft.totalExperienceYears,
+          primaryRole: profile.primaryRole,
+          coreTechnologies: profile.coreTechnologies.slice(0, 5),
+          currentCompany: profile.experience.at(-1)?.company,
+        })),
       },
       null,
       2
@@ -299,30 +167,209 @@ function createPrompt(batch: ResumeProfileDraft[]): string {
   ].join('\n');
 }
 
+function createResumeNarrativeResponseSchema(candidateCount: number) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['candidates'],
+    properties: {
+      candidates: {
+        type: 'array',
+        minItems: candidateCount,
+        maxItems: candidateCount,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['id', 'summary', 'highlights'],
+          properties: {
+            id: {
+              type: 'string',
+            },
+            summary: {
+              type: 'string',
+              minLength: 40,
+              maxLength: 360,
+            },
+            highlights: {
+              type: 'array',
+              minItems: 3,
+              maxItems: 3,
+              items: {
+                type: 'string',
+                minLength: 12,
+                maxLength: 120,
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+function mergeNarrativeIntoProfile(
+  profile: ResumeGeneratedProfile,
+  narrative: LlmResumeNarrativeItem,
+  llmModel: string
+): ResumeGeneratedProfile {
+  return {
+    ...profile,
+    llmModel,
+    summary: assertNonEmptyString(narrative.summary, 'summary', profile.id),
+    highlights: validateHighlights(narrative.highlights, profile.id),
+  };
+}
+
+function createBaseProfiles(drafts: ResumeProfileDraft[]): Map<string, ResumeGeneratedProfile> {
+  return new Map(
+    drafts.map((draft) => [draft.id, createLocalResumeProfile(draft)] satisfies [string, ResumeGeneratedProfile])
+  );
+}
+
+async function tryEnrichBatch(
+  batch: Array<{ draft: ResumeProfileDraft; profile: ResumeGeneratedProfile }>,
+  models: string[],
+  batchLabel: string
+): Promise<Map<string, ResumeGeneratedProfile> | null> {
+  const responseSchema = createResumeNarrativeResponseSchema(batch.length);
+  let lastError: unknown = null;
+
+  for (const [modelIndex, model] of models.entries()) {
+    try {
+      console.log(
+        `[Resume LLM] ${batchLabel} model attempt ${modelIndex + 1}/${models.length} using ${model}`
+      );
+
+      const response = await generateTextCompletion({
+        model,
+        systemInstruction:
+          'You enrich synthetic resumes with concise, realistic recruiter-friendly copy. Preserve grammatical agreement with the provided role and candidate context. Always return JSON only.',
+        prompt: createPrompt(batch),
+        maxTokens: Math.min(env.aiCompletionMaxTokens, Math.max(240, batch.length * 220)),
+        responseFormat: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'resume_narratives',
+            strict: true,
+            schema: responseSchema,
+          },
+        },
+        plugins: [JSON_RESPONSE_HEALING_PLUGIN],
+        provider: {
+          require_parameters: true,
+        },
+      });
+
+      const payload = parseNarrativePayload(response);
+
+      if (payload.candidates.length !== batch.length) {
+        throw new Error(
+          `Model response returned ${payload.candidates.length} candidate narratives but expected ${batch.length}.`
+        );
+      }
+
+      const narrativeById = new Map(payload.candidates.map((item) => [item.id, item]));
+      const enrichedProfiles = new Map<string, ResumeGeneratedProfile>();
+
+      for (const entry of batch) {
+        const narrative = narrativeById.get(entry.draft.id);
+
+        if (!narrative) {
+          throw new Error(`Model response did not include candidate "${entry.draft.id}".`);
+        }
+
+        enrichedProfiles.set(
+          entry.draft.id,
+          mergeNarrativeIntoProfile(entry.profile, narrative, model)
+        );
+      }
+
+      console.log(`[Resume LLM] ${batchLabel} succeeded with ${model}`);
+      return enrichedProfiles;
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `[Resume LLM] ${batchLabel} failed with ${model}: ${describeError(error)}`
+      );
+    }
+  }
+
+  console.warn(
+    `[Resume LLM] ${batchLabel} exhausted configured models. Keeping local profiles. Last error: ${describeError(lastError)}`
+  );
+  return null;
+}
+
 export async function generateResumeProfiles(
   input: GenerateResumeProfilesInput
 ): Promise<Map<string, ResumeGeneratedProfile>> {
-  const profiles = new Map<string, ResumeGeneratedProfile>();
+  const profiles = createBaseProfiles(input.drafts);
 
-  for (const batch of chunkArray(input.drafts, input.batchSize)) {
-    const response = await generateTextCompletion({
-      model: input.model,
-      systemInstruction:
-        'You are a senior resume writer producing structured JSON for synthetic but realistic technology resumes.',
-      prompt: createPrompt(batch),
+  if (input.models.length === 0) {
+    console.warn('[Resume LLM] No models configured. Using local resume profiles only.');
+    return profiles;
+  }
+
+  if (!hasOpenRouterApiKey()) {
+    console.warn('[Resume LLM] OPENROUTER_API_KEY is missing. Using local resume profiles only.');
+    return profiles;
+  }
+
+  const batches = chunkArray(input.drafts, Math.max(1, input.batchSize));
+
+  for (const [batchIndex, batchDrafts] of batches.entries()) {
+    const batchStart = batchIndex * Math.max(1, input.batchSize) + 1;
+    const batchEnd = batchStart + batchDrafts.length - 1;
+    const batchStartedAt = Date.now();
+    const batchLabel = `Batch ${batchIndex + 1}/${batches.length}`;
+
+    console.log(
+      `[Resume LLM] ${batchLabel} started (${batchStart}-${batchEnd} of ${input.drafts.length})`
+    );
+
+    const batch = batchDrafts.map((draft) => {
+      const profile = profiles.get(draft.id);
+
+      if (!profile) {
+        throw new Error(`No base profile was created for candidate "${draft.id}".`);
+      }
+
+      return { draft, profile };
     });
-    const payload = parseProfilePayload(response);
 
-    if (payload.candidates.length !== batch.length) {
-      throw new Error(
-        `Model returned ${payload.candidates.length} candidates but ${batch.length} were requested.`
+    const enrichedBatch = await tryEnrichBatch(batch, input.models, batchLabel);
+
+    if (enrichedBatch) {
+      for (const [candidateId, profile] of enrichedBatch) {
+        profiles.set(candidateId, profile);
+      }
+    } else if (batch.length > 1) {
+      console.log(
+        `[Resume LLM] ${batchLabel} retrying candidate-by-candidate before settling on local copy.`
       );
+
+      for (const entry of batch) {
+        const enrichedSingle = await tryEnrichBatch(
+          [entry],
+          input.models,
+          `${batchLabel} candidate ${entry.draft.id}`
+        );
+
+        if (!enrichedSingle) {
+          continue;
+        }
+
+        const profile = enrichedSingle.get(entry.draft.id);
+
+        if (profile) {
+          profiles.set(entry.draft.id, profile);
+        }
+      }
     }
 
-    batch.forEach((draft, index) => {
-      const candidate = payload.candidates[index];
-      profiles.set(draft.id, validateProfileItem(candidate, draft));
-    });
+    console.log(
+      `[Resume LLM] ${batchLabel} completed (elapsedMs=${Date.now() - batchStartedAt})`
+    );
   }
 
   return profiles;

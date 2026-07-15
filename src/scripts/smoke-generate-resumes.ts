@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
-import { getOpenRouterApiKey } from '../config/env.js';
+import { env, hasOpenRouterApiKey } from '../config/env.js';
 import { generateResumeDataset } from '../services/resumes/resume-generator.service.js';
 import type {
   ResumeDocumentLanguage,
@@ -14,6 +14,20 @@ interface SmokeOptions {
   language: ResumeDocumentLanguage;
   template: ResumeTemplateId;
   llmModel?: string;
+  llmModels?: string[];
+}
+
+function parseModelList(value: string): string[] {
+  const models = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (models.length === 0) {
+    throw new Error('`--models` must include at least one model id.');
+  }
+
+  return [...new Set(models)];
 }
 
 function parseArguments(argv: string[]): SmokeOptions {
@@ -70,6 +84,12 @@ function parseArguments(argv: string[]): SmokeOptions {
       continue;
     }
 
+    if (argument === '--models' && nextValue) {
+      options.llmModels = parseModelList(nextValue);
+      index += 1;
+      continue;
+    }
+
     if (argument === '--help') {
       printHelp();
       process.exit(0);
@@ -93,6 +113,7 @@ Options:
   --language <en|es-ES>  Resume language. Default: es-ES
   --template <id>        Resume template. Default: aurora-split
   --model <name>         Optional OpenRouter model override
+  --models <a,b,c>       Optional comma-separated OpenRouter fallback list
   --help                 Show this help message
 `);
 }
@@ -120,12 +141,20 @@ async function main() {
   const options = parseArguments(process.argv.slice(2));
 
   await ensureStylesAreBuilt(options.template);
-  getOpenRouterApiKey();
 
+  const effectiveModels =
+    options.llmModels ??
+    (options.llmModel ? [options.llmModel] : env.openRouterModels);
+
+  console.log('[Smoke] Preflight checks passed.');
+  if (!hasOpenRouterApiKey()) {
+    console.log('[Smoke] OPENROUTER_API_KEY not found. Running with local resume profiles only.');
+  }
   console.log('[Smoke] Starting resume generation...');
   console.log(
     `[Smoke] count=${options.count} mode=${options.mode} language=${options.language} template=${options.template}`
   );
+  console.log(`[Smoke] models=${effectiveModels.join(', ')}`);
 
   const startedAt = Date.now();
   const manifest = await generateResumeDataset({
@@ -134,6 +163,7 @@ async function main() {
     language: options.language,
     template: options.template,
     llmModel: options.llmModel,
+    llmModels: options.llmModels,
   });
   const elapsedMs = Date.now() - startedAt;
 
@@ -142,7 +172,12 @@ async function main() {
   console.log(`[Smoke] generated=${manifest.lastBatchCount} total=${manifest.count}`);
   console.log(`[Smoke] pdfDirectory=${manifest.pdfDirectory}`);
   console.log(`[Smoke] metadataDirectory=${manifest.metadataDirectory}`);
-  console.log(`[Smoke] model=${manifest.lastTextGeneration.model}`);
+  console.log(`[Smoke] preferredModel=${manifest.lastTextGeneration.model}`);
+  console.log(`[Smoke] strategy=${manifest.lastTextGeneration.strategy}`);
+  console.log(`[Smoke] configuredModels=${manifest.lastTextGeneration.models.join(', ')}`);
+  console.log(`[Smoke] usedModels=${manifest.lastTextGeneration.usedModels.join(', ')}`);
+  console.log(`[Smoke] enrichedProfiles=${manifest.lastTextGeneration.enrichedProfileCount}`);
+  console.log(`[Smoke] localProfiles=${manifest.lastTextGeneration.localProfileCount}`);
   console.log(`[Smoke] elapsedMs=${elapsedMs}`);
 }
 

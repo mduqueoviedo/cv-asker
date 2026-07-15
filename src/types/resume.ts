@@ -5,6 +5,7 @@ export interface ResumeLanguage {
 
 export type ResumeDocumentLanguage = 'en' | 'es-ES';
 export type ResumeTemplateId = 'aurora-split';
+export type ResumeGrammaticalGender = 'feminine' | 'masculine';
 
 export interface ResumeEducationEntry {
   degree: string;
@@ -74,14 +75,19 @@ export interface GenerateResumeDatasetInput {
   cleanOutput?: boolean;
   language?: ResumeDocumentLanguage;
   llmModel?: string;
+  llmModels?: string[];
   template?: ResumeTemplateId;
 }
 
 export interface ResumeTextGenerationMetadata {
-  strategy: 'faker-plus-llm';
+  strategy: 'faker-base-with-llm-enrichment';
   provider: 'openrouter';
   model: string;
+  models: string[];
+  usedModels: string[];
   batchSize: number;
+  enrichedProfileCount: number;
+  localProfileCount: number;
 }
 
 export interface ResumeDatasetManifest {

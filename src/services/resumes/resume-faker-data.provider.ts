@@ -1,8 +1,13 @@
 import { Faker, en, en_GB, es } from '@faker-js/faker';
-import type { ResumeDocumentLanguage, ResumePhotoPalette } from '../../types/resume.js';
+import type {
+  ResumeDocumentLanguage,
+  ResumeGrammaticalGender,
+  ResumePhotoPalette,
+} from '../../types/resume.js';
 
 export interface ResumePersonSeed {
   fullName: string;
+  grammaticalGender: ResumeGrammaticalGender;
   age: number;
   location: string;
   email: string;
@@ -40,6 +45,20 @@ function createLocation(fakerInstance: Faker): string {
 
 function createColorChannel(fakerInstance: Faker, min: number, max: number): number {
   return fakerInstance.number.int({ min, max });
+}
+
+function createGrammaticalGender(fakerInstance: Faker, index: number): ResumeGrammaticalGender {
+  const sexType = fakerInstance.person.sexType();
+
+  if (sexType === 'female') {
+    return 'feminine';
+  }
+
+  if (sexType === 'male') {
+    return 'masculine';
+  }
+
+  return index % 2 === 0 ? 'feminine' : 'masculine';
 }
 
 function createPhotoPalette(fakerInstance: Faker): ResumePhotoPalette {
@@ -81,12 +100,16 @@ export function createFakerResumeSeedDataProvider(): ResumeSeedDataProvider {
   return {
     createPersonSeed(index, language) {
       const fakerInstance = createScopedFaker(language, index + 1);
-      const firstName = fakerInstance.person.firstName();
+      const grammaticalGender = createGrammaticalGender(fakerInstance, index);
+      const firstName = fakerInstance.person.firstName(
+        grammaticalGender === 'feminine' ? 'female' : 'male'
+      );
       const lastName = fakerInstance.person.lastName();
       const fullName = `${firstName} ${lastName}`;
 
       return {
         fullName,
+        grammaticalGender,
         age: fakerInstance.number.int({ min: 24, max: 41 }),
         location: createLocation(fakerInstance),
         email: createEmail(fakerInstance, firstName, lastName),

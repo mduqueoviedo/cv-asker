@@ -20,7 +20,7 @@ import {
 import { createResumePdfRenderer } from './resume-renderer.service.js';
 
 const DEFAULT_RESUME_COUNT = 28;
-const MIN_RESUME_COUNT = 25;
+const MIN_RESUME_COUNT = 1;
 const MAX_RESUME_COUNT = 30;
 const OUTPUT_DIRECTORY = path.join(process.cwd(), 'storage', 'generated-resumes');
 const PDF_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'pdfs');
@@ -42,7 +42,9 @@ interface CandidateResumeDraft
     | 'highlights'
     | 'certifications'
     | 'portfolioUrl'
-  > {}
+  > {
+  grammaticalGender: ResumeProfileDraft['grammaticalGender'];
+}
 
 function createSlug(value: string): string {
   return value
@@ -108,6 +110,18 @@ function resolveResumeTemplate(input: GenerateResumeDatasetInput): ResumeTemplat
   return template;
 }
 
+function resolveRequestedModels(input: GenerateResumeDatasetInput): string[] {
+  if (Array.isArray(input.llmModels) && input.llmModels.length > 0) {
+    return [...new Set(input.llmModels.map((model) => model.trim()).filter(Boolean))];
+  }
+
+  if (typeof input.llmModel === 'string' && input.llmModel.trim()) {
+    return [input.llmModel.trim()];
+  }
+
+  return env.openRouterModels;
+}
+
 async function ensureOutputDirectories(mode: ResumeGenerationMode) {
   if (mode === 'replace') {
     await rm(OUTPUT_DIRECTORY, { recursive: true, force: true });
@@ -135,6 +149,7 @@ function createCandidateDraft(
     id,
     documentLanguage: language,
     fullName: personSeed.fullName,
+    grammaticalGender: personSeed.grammaticalGender,
     age: personSeed.age,
     location: personSeed.location,
     email: personSeed.email,
@@ -150,6 +165,7 @@ function createProfileDraft(candidate: CandidateResumeDraft): ResumeProfileDraft
     id: candidate.id,
     documentLanguage: candidate.documentLanguage,
     fullName: candidate.fullName,
+    grammaticalGender: candidate.grammaticalGender,
     age: candidate.age,
     location: candidate.location,
     totalExperienceYears: candidate.totalExperienceYears,
@@ -204,37 +220,68 @@ async function writeCandidateArtifacts(
   };
 }
 
-function createTextGenerationMetadata(model: string): ResumeTextGenerationMetadata {
+function createTextGenerationMetadata(
+  models: string[],
+  usedModels: string[],
+  profiles: Iterable<ResumeGeneratedProfile>
+): ResumeTextGenerationMetadata {
+  let enrichedProfileCount = 0;
+  let localProfileCount = 0;
+
+  for (const profile of profiles) {
+    if (profile.llmModel.startsWith('local/')) {
+      localProfileCount += 1;
+      continue;
+    }
+
+    enrichedProfileCount += 1;
+  }
+
   return {
-    strategy: 'faker-plus-llm',
+    strategy: 'faker-base-with-llm-enrichment',
     provider: 'openrouter',
-    model,
+    model: models[0],
+    models,
+    usedModels,
     batchSize: env.resumeTextBatchSize,
+    enrichedProfileCount,
+    localProfileCount,
   };
 }
 
 export async function generateResumeDataset(
   input: GenerateResumeDatasetInput = {}
 ): Promise<ResumeDatasetManifest> {
+  const generationStartedAt = Date.now();
   const count = clampResumeCount(input.count ?? DEFAULT_RESUME_COUNT);
   const mode = resolveGenerationMode(input);
   const language = resolveDocumentLanguage(input);
   const template = resolveResumeTemplate(input);
-  const llmModel = input.llmModel ?? env.openRouterModel;
+  const llmModels = resolveRequestedModels(input);
   const existingManifest = mode === 'append' ? await getResumeDatasetManifest() : null;
   const existingResumes = existingManifest?.resumes ?? [];
   const startIndex = existingResumes.length;
 
+  console.log(
+    `[Resume Generator] Starting dataset generation: count=${count} mode=${mode} language=${language} template=${template} models=${llmModels.join(', ')}`
+  );
+
   await ensureOutputDirectories(mode);
+  console.log('[Resume Generator] Output directories ready.');
 
   const candidateDrafts = Array.from({ length: count }, (_, index) =>
     createCandidateDraft(startIndex + index, language)
   );
+  console.log(`[Resume Generator] Created ${candidateDrafts.length} candidate seeds.`);
+  const llmStartedAt = Date.now();
   const profiles = await generateResumeProfiles({
     drafts: candidateDrafts.map((candidate) => createProfileDraft(candidate)),
-    model: llmModel,
+    models: llmModels,
     batchSize: env.resumeTextBatchSize,
   });
+  console.log(
+    `[Resume Generator] Resume text ready: ${profiles.size}/${candidateDrafts.length} (elapsedMs=${Date.now() - llmStartedAt}).`
+  );
   const candidates = candidateDrafts.map((candidate) => {
     const profile = profiles.get(candidate.id);
 
@@ -246,17 +293,36 @@ export async function generateResumeDataset(
   });
   const pdfRenderer = await createResumePdfRenderer();
   const newResumes: GeneratedResumeArtifact[] = [];
+  const renderStartedAt = Date.now();
 
   try {
-    for (const candidate of candidates) {
+    for (const [candidateIndex, candidate] of candidates.entries()) {
+      const candidateRenderStartedAt = Date.now();
+      console.log(
+        `[Resume Renderer] Rendering PDF ${candidateIndex + 1}/${candidates.length} for ${candidate.id}`
+      );
       const pdfBuffer = await pdfRenderer.render(candidate, template);
-      const artifact = await writeCandidateArtifacts(candidate, llmModel, template, pdfBuffer);
+      const profile = profiles.get(candidate.id);
+
+      if (!profile) {
+        throw new Error(`No profile metadata was retained for candidate "${candidate.id}".`);
+      }
+
+      const artifact = await writeCandidateArtifacts(candidate, profile.llmModel, template, pdfBuffer);
       newResumes.push(artifact);
+      console.log(
+        `[Resume Renderer] Stored PDF ${candidateIndex + 1}/${candidates.length} at ${artifact.pdfFilePath} (elapsedMs=${Date.now() - candidateRenderStartedAt})`
+      );
     }
   } finally {
     await pdfRenderer.close();
   }
 
+  console.log(
+    `[Resume Renderer] All PDFs rendered (${newResumes.length}/${candidates.length}, elapsedMs=${Date.now() - renderStartedAt})`
+  );
+
+  const usedModels = [...new Set(newResumes.map((resume) => resume.llmModel))];
   const resumes = mode === 'append' ? [...existingResumes, ...newResumes] : newResumes;
   const manifest: ResumeDatasetManifest = {
     datasetId: `generated-resume-dataset-${new Date().toISOString()}`,
@@ -265,7 +331,7 @@ export async function generateResumeDataset(
     lastBatchCount: newResumes.length,
     lastBatchLanguage: language,
     lastTemplate: template,
-    lastTextGeneration: createTextGenerationMetadata(llmModel),
+    lastTextGeneration: createTextGenerationMetadata(llmModels, usedModels, profiles.values()),
     outputDirectory: OUTPUT_DIRECTORY,
     pdfDirectory: PDF_DIRECTORY,
     metadataDirectory: METADATA_DIRECTORY,
@@ -274,6 +340,9 @@ export async function generateResumeDataset(
   };
 
   await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
+  console.log(
+    `[Resume Generator] Dataset generation completed: batch=${newResumes.length} total=${manifest.count} elapsedMs=${Date.now() - generationStartedAt}`
+  );
 
   return manifest;
 }
@@ -296,10 +365,31 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
 
     const content = await readFile(MANIFEST_PATH, 'utf8');
     const manifest = JSON.parse(content) as Partial<ResumeDatasetManifest>;
+    const configuredModels =
+      manifest.lastTextGeneration?.models && manifest.lastTextGeneration.models.length > 0
+        ? manifest.lastTextGeneration.models
+        : manifest.lastTextGeneration?.model
+          ? [manifest.lastTextGeneration.model]
+          : env.openRouterModels;
+    const usedModels =
+      manifest.lastTextGeneration?.usedModels && manifest.lastTextGeneration.usedModels.length > 0
+        ? manifest.lastTextGeneration.usedModels
+        : configuredModels;
 
     return {
       ...manifest,
       lastTemplate: manifest.lastTemplate ?? DEFAULT_RESUME_TEMPLATE,
+      lastTextGeneration: manifest.lastTextGeneration
+        ? {
+            ...manifest.lastTextGeneration,
+            models: configuredModels,
+            usedModels,
+            enrichedProfileCount: manifest.lastTextGeneration.enrichedProfileCount ?? 0,
+            localProfileCount:
+              manifest.lastTextGeneration.localProfileCount ??
+              Math.max(0, (manifest.resumes?.length ?? 0) - (manifest.lastTextGeneration.enrichedProfileCount ?? 0)),
+          }
+        : createTextGenerationMetadata(env.openRouterModels, env.openRouterModels, []),
       resumes: (manifest.resumes ?? []).map((resume) => ({
         ...resume,
         template: resume.template ?? DEFAULT_RESUME_TEMPLATE,

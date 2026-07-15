@@ -25,7 +25,8 @@ CV Asker is a local-first full-stack recruitment prototype. The project combines
 - Modular route/controller/service structure under `src/`.
 - OpenRouter integration through native `fetch`.
 - Shared AI HTTP retry layer with timeout and exponential backoff.
-- Resume generation service now uses `faker` only for personal seed data and delegates professional resume content to OpenRouter.
+- Ordered OpenRouter fallback for lightweight resume-text enrichment.
+- Resume generation service now builds the CV structure locally with `faker` and enriches only summary/highlights with the LLM.
 - Resume datasets can be generated in `en` or `es-ES`.
 
 ## Architecture Overview
@@ -78,15 +79,16 @@ The backend starts on `http://localhost:3000` by default.
 - `replace` is the default mode and clears the previous output before generating a fresh dataset.
 - `append` keeps the existing dataset and adds a new batch of resumes without reusing candidate ids or file names.
 - The generator enforces the project requirement range of 25-30 resumes per generation run.
-- Personal seed data comes from `faker`, while role, technologies, languages, education, experience, certifications, summary, and highlights come from OpenRouter in sequential batches.
-- Avoid hardcoded role catalogs, university lists, certification lists, and language profiles in local code.
+- Personal seed data and the full resume structure come from `faker` plus small local catalogs.
+- OpenRouter is used only to enrich the professional summary and highlights, keeping token usage and failure surface low.
 - Supported document languages are `en` and `es-ES`.
 - Resume templates are now modeled explicitly so the renderer can move to HTML-to-PDF later without changing the dataset shape.
 - HTML should be treated as a transient render step and cleaned up once its PDF counterpart has been produced.
 - The current default template is `aurora-split`.
 - Output is written under `storage/generated-resumes/`.
 - JSON metadata is stored only as a derived artifact of the fresh resumes, to support later ingestion steps.
-- Each generated artifact records the language and model used for its resume copy.
+- Each generated artifact records the language and the model used for text enrichment, or `local/base-profile` when the local copy is kept.
+- When multiple models are configured, the generator tries them in order and keeps valid local copy if all enrichment attempts fail.
 
 Example request body:
 
@@ -95,7 +97,11 @@ Example request body:
   "count": 28,
   "mode": "replace",
   "language": "es-ES",
-  "llmModel": "meta-llama/llama-3.3-70b-instruct:free",
+  "llmModels": [
+    "google/gemini-2.5-flash-lite",
+    "google/gemma-3-27b-it:free",
+    "openai/gpt-oss-20b:free"
+  ],
   "template": "aurora-split"
 }
 ```
@@ -104,6 +110,12 @@ Example smoke command:
 
 ```bash
 pnpm smoke:resumes -- --count 25 --mode replace --language es-ES --template aurora-split
+```
+
+Example smoke command with explicit multi-model fallback:
+
+```bash
+pnpm smoke:resumes -- --count 6 --mode replace --language es-ES --template aurora-split --models google/gemini-2.5-flash-lite,google/gemma-3-27b-it:free,openai/gpt-oss-20b:free
 ```
 
 Default generation command:
@@ -123,21 +135,18 @@ pnpm generate:resumes:append
 
 ## Environment Variables
 
-Copy `.env.example` into `.env` and provide a valid OpenRouter API key when working on AI integration or model evaluation.
+Copy `.env.example` into `.env`. `OPENROUTER_API_KEY` is optional if you want local-only CV generation, and required only for LLM enrichment.
 
 - `PORT`: Local backend port.
-- `OPENROUTER_API_KEY`: API key used for chat completions.
-- `OPENROUTER_MODEL`: Optional OpenRouter model override.
+- `OPENROUTER_API_KEY`: API key used for optional resume-text enrichment.
+- `OPENROUTER_MODELS`: Optional comma-separated OpenRouter model list used in ordered fallback mode.
+- `OPENROUTER_MODEL`: Optional legacy single-model override. Ignored when `OPENROUTER_MODELS` is set.
 - `AI_REQUEST_TIMEOUT_MS`: Optional timeout per AI request. Defaults to `20000`.
 - `AI_REQUEST_MAX_RETRIES`: Optional retry count for retryable AI API failures. Defaults to `2`.
 - `AI_REQUEST_BASE_DELAY_MS`: Optional base delay for exponential backoff. Defaults to `600`.
-- `RESUME_TEXT_BATCH_SIZE`: Number of CVs generated per LLM request. Defaults to `4`.
+- `AI_COMPLETION_MAX_TOKENS`: Max output tokens requested from the model per completion. Defaults to `600`.
+- `RESUME_TEXT_BATCH_SIZE`: Number of CVs generated per LLM request. Defaults to `2`.
 - `RESUME_DEFAULT_LANGUAGE`: Default resume language when the API request does not send one. Supported values: `en`, `es-ES`.
-
-## OpenRouter Model Notes
-
-- Working research notes for free OpenRouter models live in `docs/openrouter-model-notes.md`.
-- Treat that document as a shortlist for experimentation, not a guarantee of current availability or performance.
 
 ## Next Planned Steps
 

@@ -15,6 +15,7 @@ interface GenerateResumeRequestBody {
   cleanOutput?: boolean;
   language?: ResumeDocumentLanguage;
   llmModel?: string;
+  llmModels?: string[];
   template?: ResumeTemplateId;
 }
 
@@ -30,6 +31,7 @@ export const generateResumes: RequestHandler<
       cleanOutput: request.body?.cleanOutput,
       language: request.body?.language,
       llmModel: request.body?.llmModel,
+      llmModels: request.body?.llmModels,
       template: request.body?.template,
     });
 

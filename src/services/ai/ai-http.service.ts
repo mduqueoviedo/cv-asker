@@ -14,12 +14,17 @@ export interface AiApiRequestOptions {
 export class AiApiRequestError extends Error {
   public readonly status: number | null;
   public readonly attemptCount: number;
+  public readonly retryAfterMs: number | null;
 
-  constructor(message: string, options: { status?: number | null; attemptCount: number }) {
+  constructor(
+    message: string,
+    options: { status?: number | null; attemptCount: number; retryAfterMs?: number | null }
+  ) {
     super(message);
     this.name = 'AiApiRequestError';
     this.status = options.status ?? null;
     this.attemptCount = options.attemptCount;
+    this.retryAfterMs = options.retryAfterMs ?? null;
   }
 }
 
@@ -63,31 +68,96 @@ async function runFetchAttempt(options: AiApiRequestOptions): Promise<Response> 
   }
 }
 
+function parseRateLimitResetHeader(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  if (parsed > 1_000_000_000_000) {
+    return Math.max(0, parsed - Date.now());
+  }
+
+  if (parsed > 10_000_000_000) {
+    return Math.max(0, parsed * 1000 - Date.now());
+  }
+
+  return parsed * 1000;
+}
+
+function resolveRetryDelayMs(
+  response: Response | null,
+  baseDelayMs: number,
+  attempt: number,
+  error?: AiApiRequestError
+): number {
+  const retryAfterHeader = response?.headers.get('retry-after');
+  const rateLimitResetHeader = response?.headers.get('x-ratelimit-reset');
+
+  if (retryAfterHeader) {
+    const retryAfterSeconds = Number(retryAfterHeader);
+
+    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+      return Math.ceil(retryAfterSeconds * 1000);
+    }
+  }
+
+  const resetDelayMs = parseRateLimitResetHeader(rateLimitResetHeader ?? null);
+
+  if (typeof resetDelayMs === 'number' && resetDelayMs > 0) {
+    return resetDelayMs + 250;
+  }
+
+  if (typeof error?.retryAfterMs === 'number' && error.retryAfterMs > 0) {
+    return error.retryAfterMs;
+  }
+
+  return createAttemptDelay(baseDelayMs, attempt);
+}
+
 export async function fetchAiJsonWithRetry<T>(options: AiApiRequestOptions): Promise<T> {
   const retryableStatusCodes = options.retryableStatusCodes ?? DEFAULT_RETRYABLE_STATUS_CODES;
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= options.maxRetries + 1; attempt += 1) {
+    const attemptStartedAt = Date.now();
+
+    console.log(
+      `[AI API] Attempt ${attempt}/${options.maxRetries + 1} started (${options.method ?? 'GET'} ${options.url}, timeoutMs=${options.timeoutMs})`
+    );
+
     try {
       const response = await runFetchAttempt(options);
 
       if (response.ok) {
-        return (await response.json()) as T;
+        const payload = (await response.json()) as T;
+        console.log(
+          `[AI API] Attempt ${attempt}/${options.maxRetries + 1} succeeded (status=${response.status}, elapsedMs=${Date.now() - attemptStartedAt})`
+        );
+        return payload;
       }
 
       const errorText = await response.text();
       const errorMessage = `AI API response status: ${response.status} - ${errorText}`;
+      const retryAfterMs = resolveRetryDelayMs(response, options.baseDelayMs, attempt);
 
       if (!retryableStatusCodes.has(response.status) || attempt > options.maxRetries) {
         throw new AiApiRequestError(errorMessage, {
           status: response.status,
           attemptCount: attempt,
+          retryAfterMs,
         });
       }
 
       lastError = new AiApiRequestError(errorMessage, {
         status: response.status,
         attemptCount: attempt,
+        retryAfterMs,
       });
     } catch (error) {
       if (error instanceof AiApiRequestError && attempt > options.maxRetries) {
@@ -98,6 +168,8 @@ export async function fetchAiJsonWithRetry<T>(options: AiApiRequestOptions): Pro
         if (error instanceof Error) {
           throw new AiApiRequestError(error.message, {
             attemptCount: attempt,
+            retryAfterMs:
+              error instanceof AiApiRequestError ? error.retryAfterMs : null,
           });
         }
 
@@ -109,9 +181,12 @@ export async function fetchAiJsonWithRetry<T>(options: AiApiRequestOptions): Pro
       lastError = error;
     }
 
-    const delayMs = createAttemptDelay(options.baseDelayMs, attempt);
+    const delayMs =
+      lastError instanceof AiApiRequestError
+        ? resolveRetryDelayMs(null, options.baseDelayMs, attempt, lastError)
+        : createAttemptDelay(options.baseDelayMs, attempt);
     console.warn(
-      `[AI API]: Attempt ${attempt} failed. Retrying in ${delayMs}ms.`
+      `[AI API] Attempt ${attempt}/${options.maxRetries + 1} failed after ${Date.now() - attemptStartedAt}ms. Retrying in ${delayMs}ms.`
     );
     await sleep(delayMs);
   }
