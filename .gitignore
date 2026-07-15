@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.pnpm-store/
+.DS_Store
+
+.agents/
+.codex/
