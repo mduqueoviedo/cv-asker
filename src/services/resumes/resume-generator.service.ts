@@ -1,17 +1,20 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { env } from '../../config/env.js';
+import { env, hasImageGenerationApiKey } from '../../config/env.js';
 import type {
   CandidateResume,
   GenerateResumeDatasetInput,
   GeneratedResumeArtifact,
+  ResumeImageGenerationMetadata,
   ResumeDatasetManifest,
   ResumeDocumentLanguage,
   ResumeGenerationMode,
+  StoredCandidateResume,
   ResumeTemplateId,
   ResumeTextGenerationMetadata,
 } from '../../types/resume.js';
 import { createFakerResumeSeedDataProvider } from './resume-faker-data.provider.js';
+import { generateResumePhoto } from './resume-photo.service.js';
 import {
   generateResumeProfiles,
   type ResumeGeneratedProfile,
@@ -24,6 +27,7 @@ const MIN_RESUME_COUNT = 1;
 const MAX_RESUME_COUNT = 30;
 const OUTPUT_DIRECTORY = path.join(process.cwd(), 'storage', 'generated-resumes');
 const PDF_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'pdfs');
+const PHOTO_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'photos');
 const METADATA_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'metadata');
 const MANIFEST_PATH = path.join(OUTPUT_DIRECTORY, 'manifest.json');
 const LEGACY_HTML_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'html');
@@ -42,6 +46,7 @@ interface CandidateResumeDraft
     | 'highlights'
     | 'certifications'
     | 'portfolioUrl'
+    | 'photo'
   > {
   grammaticalGender: ResumeProfileDraft['grammaticalGender'];
 }
@@ -129,6 +134,7 @@ async function ensureOutputDirectories(mode: ResumeGenerationMode) {
 
   await rm(LEGACY_HTML_DIRECTORY, { recursive: true, force: true });
   await mkdir(PDF_DIRECTORY, { recursive: true });
+  await mkdir(PHOTO_DIRECTORY, { recursive: true });
   await mkdir(METADATA_DIRECTORY, { recursive: true });
 }
 
@@ -189,7 +195,26 @@ function applyProfileToCandidate(
     experience: profile.experience,
     highlights: profile.highlights,
     certifications: profile.certifications,
+    photo: {
+      provider: '',
+      mimeType: '',
+      dataUri: '',
+      prompt: '',
+      model: '',
+    },
   };
+}
+
+function getPhotoFileExtension(mimeType: string): string {
+  if (mimeType === 'image/png') {
+    return 'png';
+  }
+
+  if (mimeType === 'image/webp') {
+    return 'webp';
+  }
+
+  return 'jpg';
 }
 
 async function writeCandidateArtifacts(
@@ -199,12 +224,27 @@ async function writeCandidateArtifacts(
   pdfBuffer: Buffer
 ): Promise<GeneratedResumeArtifact> {
   const pdfFileName = `${candidate.id}.pdf`;
+  const photoFileName = `${candidate.id}.${getPhotoFileExtension(candidate.photo.mimeType)}`;
   const metadataFileName = `${candidate.id}.json`;
   const pdfFilePath = path.join(PDF_DIRECTORY, pdfFileName);
+  const photoFilePath = path.join(PHOTO_DIRECTORY, photoFileName);
   const metadataFilePath = path.join(METADATA_DIRECTORY, metadataFileName);
+  const photoBase64Data = candidate.photo.dataUri.replace(/^data:[^;]+;base64,/, '');
+  const metadata: StoredCandidateResume = {
+    ...candidate,
+    photo: {
+      provider: candidate.photo.provider,
+      mimeType: candidate.photo.mimeType,
+      fileName: photoFileName,
+      filePath: photoFilePath,
+      prompt: candidate.photo.prompt,
+      model: candidate.photo.model,
+    },
+  };
 
   await writeFile(pdfFilePath, pdfBuffer);
-  await writeFile(metadataFilePath, JSON.stringify(candidate, null, 2));
+  await writeFile(photoFilePath, Buffer.from(photoBase64Data, 'base64'));
+  await writeFile(metadataFilePath, JSON.stringify(metadata, null, 2));
 
   return {
     id: candidate.id,
@@ -215,6 +255,8 @@ async function writeCandidateArtifacts(
     template,
     pdfFileName,
     pdfFilePath,
+    photoFileName,
+    photoFilePath,
     metadataFileName,
     metadataFilePath,
   };
@@ -249,9 +291,21 @@ function createTextGenerationMetadata(
   };
 }
 
+function createImageGenerationMetadata(count: number): ResumeImageGenerationMetadata {
+  return {
+    provider: env.imageGenerationProvider,
+    model: env.imageGenerationModel,
+    generatedPhotoCount: count,
+  };
+}
+
 export async function generateResumeDataset(
   input: GenerateResumeDatasetInput = {}
 ): Promise<ResumeDatasetManifest> {
+  if (!hasImageGenerationApiKey()) {
+    throw new Error('Image generation credentials are required to generate realistic resume photos.');
+  }
+
   const generationStartedAt = Date.now();
   const count = clampResumeCount(input.count ?? DEFAULT_RESUME_COUNT);
   const mode = resolveGenerationMode(input);
@@ -291,15 +345,37 @@ export async function generateResumeDataset(
 
     return applyProfileToCandidate(candidate, profile);
   });
+  const candidatesWithPhotos: CandidateResume[] = [];
+  const photoGenerationStartedAt = Date.now();
+
+  for (const [candidateIndex, candidate] of candidates.entries()) {
+    const photoStartedAt = Date.now();
+    console.log(
+      `[Resume Photos] Generating photo ${candidateIndex + 1}/${candidates.length} for ${candidate.id} using ${env.imageGenerationProvider}/${env.imageGenerationModel}`
+    );
+    const photo = await generateResumePhoto(candidate);
+    candidatesWithPhotos.push({
+      ...candidate,
+      photo,
+    });
+    console.log(
+      `[Resume Photos] Completed photo ${candidateIndex + 1}/${candidates.length} for ${candidate.id} (elapsedMs=${Date.now() - photoStartedAt})`
+    );
+  }
+
+  console.log(
+    `[Resume Photos] All photos generated (${candidatesWithPhotos.length}/${candidates.length}, elapsedMs=${Date.now() - photoGenerationStartedAt})`
+  );
+
   const pdfRenderer = await createResumePdfRenderer();
   const newResumes: GeneratedResumeArtifact[] = [];
   const renderStartedAt = Date.now();
 
   try {
-    for (const [candidateIndex, candidate] of candidates.entries()) {
+    for (const [candidateIndex, candidate] of candidatesWithPhotos.entries()) {
       const candidateRenderStartedAt = Date.now();
       console.log(
-        `[Resume Renderer] Rendering PDF ${candidateIndex + 1}/${candidates.length} for ${candidate.id}`
+        `[Resume Renderer] Rendering PDF ${candidateIndex + 1}/${candidatesWithPhotos.length} for ${candidate.id}`
       );
       const pdfBuffer = await pdfRenderer.render(candidate, template);
       const profile = profiles.get(candidate.id);
@@ -311,7 +387,7 @@ export async function generateResumeDataset(
       const artifact = await writeCandidateArtifacts(candidate, profile.llmModel, template, pdfBuffer);
       newResumes.push(artifact);
       console.log(
-        `[Resume Renderer] Stored PDF ${candidateIndex + 1}/${candidates.length} at ${artifact.pdfFilePath} (elapsedMs=${Date.now() - candidateRenderStartedAt})`
+        `[Resume Renderer] Stored PDF ${candidateIndex + 1}/${candidatesWithPhotos.length} at ${artifact.pdfFilePath} (elapsedMs=${Date.now() - candidateRenderStartedAt})`
       );
     }
   } finally {
@@ -319,7 +395,7 @@ export async function generateResumeDataset(
   }
 
   console.log(
-    `[Resume Renderer] All PDFs rendered (${newResumes.length}/${candidates.length}, elapsedMs=${Date.now() - renderStartedAt})`
+    `[Resume Renderer] All PDFs rendered (${newResumes.length}/${candidatesWithPhotos.length}, elapsedMs=${Date.now() - renderStartedAt})`
   );
 
   const usedModels = [...new Set(newResumes.map((resume) => resume.llmModel))];
@@ -332,8 +408,10 @@ export async function generateResumeDataset(
     lastBatchLanguage: language,
     lastTemplate: template,
     lastTextGeneration: createTextGenerationMetadata(llmModels, usedModels, profiles.values()),
+    lastImageGeneration: createImageGenerationMetadata(candidatesWithPhotos.length),
     outputDirectory: OUTPUT_DIRECTORY,
     pdfDirectory: PDF_DIRECTORY,
+    photoDirectory: PHOTO_DIRECTORY,
     metadataDirectory: METADATA_DIRECTORY,
     count: resumes.length,
     resumes,
@@ -349,15 +427,17 @@ export async function generateResumeDataset(
 
 export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest | null> {
   try {
-    const [manifestStats, pdfDirectoryStats, metadataDirectoryStats] = await Promise.all([
+    const [manifestStats, pdfDirectoryStats, photoDirectoryStats, metadataDirectoryStats] = await Promise.all([
       stat(MANIFEST_PATH),
       stat(PDF_DIRECTORY),
+      stat(PHOTO_DIRECTORY),
       stat(METADATA_DIRECTORY),
     ]);
 
     if (
       !manifestStats.isFile() ||
       !pdfDirectoryStats.isDirectory() ||
+      !photoDirectoryStats.isDirectory() ||
       !metadataDirectoryStats.isDirectory()
     ) {
       return null;
@@ -390,6 +470,8 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
               Math.max(0, (manifest.resumes?.length ?? 0) - (manifest.lastTextGeneration.enrichedProfileCount ?? 0)),
           }
         : createTextGenerationMetadata(env.openRouterModels, env.openRouterModels, []),
+      lastImageGeneration: manifest.lastImageGeneration ?? createImageGenerationMetadata(0),
+      photoDirectory: manifest.photoDirectory ?? PHOTO_DIRECTORY,
       resumes: (manifest.resumes ?? []).map((resume) => ({
         ...resume,
         template: resume.template ?? DEFAULT_RESUME_TEMPLATE,
@@ -407,14 +489,16 @@ export async function getResumeDatasetStorageSnapshot() {
     return null;
   }
 
-  const [pdfFiles, metadataFiles] = await Promise.all([
+  const [pdfFiles, photoFiles, metadataFiles] = await Promise.all([
     readdir(PDF_DIRECTORY),
+    readdir(PHOTO_DIRECTORY),
     readdir(METADATA_DIRECTORY),
   ]);
 
   return {
     manifest,
     pdfCount: pdfFiles.length,
+    photoCount: photoFiles.length,
     metadataCount: metadataFiles.length,
   };
 }

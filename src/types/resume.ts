@@ -32,9 +32,27 @@ export interface ResumePhotoPalette {
   shirt: [number, number, number];
 }
 
+export interface ResumePhotoAsset {
+  provider: string;
+  mimeType: string;
+  dataUri: string;
+  prompt: string;
+  model: string;
+}
+
+export interface StoredResumePhotoAsset {
+  provider: string;
+  mimeType: string;
+  fileName: string;
+  filePath: string;
+  prompt: string;
+  model: string;
+}
+
 export interface CandidateResume {
   id: string;
   documentLanguage: ResumeDocumentLanguage;
+  grammaticalGender: ResumeGrammaticalGender;
   fullName: string;
   age: number;
   primaryRole: string;
@@ -52,6 +70,11 @@ export interface CandidateResume {
   highlights: string[];
   certifications: string[];
   photoPalette: ResumePhotoPalette;
+  photo: ResumePhotoAsset;
+}
+
+export interface StoredCandidateResume extends Omit<CandidateResume, 'photo'> {
+  photo: StoredResumePhotoAsset;
 }
 
 export interface GeneratedResumeArtifact {
@@ -63,6 +86,8 @@ export interface GeneratedResumeArtifact {
   template: ResumeTemplateId;
   pdfFileName: string;
   pdfFilePath: string;
+  photoFileName: string;
+  photoFilePath: string;
   metadataFileName: string;
   metadataFilePath: string;
 }
@@ -90,6 +115,12 @@ export interface ResumeTextGenerationMetadata {
   localProfileCount: number;
 }
 
+export interface ResumeImageGenerationMetadata {
+  provider: string;
+  model: string;
+  generatedPhotoCount: number;
+}
+
 export interface ResumeDatasetManifest {
   datasetId: string;
   generatedAt: string;
@@ -98,8 +129,10 @@ export interface ResumeDatasetManifest {
   lastBatchLanguage: ResumeDocumentLanguage;
   lastTemplate: ResumeTemplateId;
   lastTextGeneration: ResumeTextGenerationMetadata;
+  lastImageGeneration: ResumeImageGenerationMetadata;
   outputDirectory: string;
   pdfDirectory: string;
+  photoDirectory: string;
   metadataDirectory: string;
   count: number;
   resumes: GeneratedResumeArtifact[];

@@ -89,30 +89,6 @@ function formatRgb(color: [number, number, number]): string {
   return `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
 }
 
-function createAvatarDataUri(candidate: CandidateResume): string {
-  const { photoPalette } = candidate;
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 280" role="img" aria-label="${escapeHtml(candidate.fullName)}">
-      <defs>
-        <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
-          <stop offset="0%" stop-color="${formatRgb(photoPalette.background)}" />
-          <stop offset="100%" stop-color="${formatRgb(photoPalette.accent)}" />
-        </linearGradient>
-      </defs>
-      <rect width="240" height="280" rx="32" fill="url(#bg)" />
-      <circle cx="120" cy="98" r="54" fill="${formatRgb(photoPalette.skin)}" />
-      <path d="M68 92c8-39 35-62 63-62 33 0 59 23 66 61-10-10-28-17-49-17-35 0-61 8-80 18Z" fill="${formatRgb(photoPalette.hair)}" />
-      <rect x="58" y="158" width="124" height="96" rx="38" fill="${formatRgb(photoPalette.jacket)}" />
-      <path d="M95 162h50l17 92H78l17-92Z" fill="${formatRgb(photoPalette.shirt)}" />
-      <circle cx="102" cy="95" r="5" fill="#1f2937" />
-      <circle cx="141" cy="95" r="5" fill="#1f2937" />
-      <path d="M103 122c10 8 24 8 34 0" fill="none" stroke="#7c2d12" stroke-linecap="round" stroke-width="4" />
-    </svg>
-  `.trim();
-
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
 function renderExperienceItems(experiences: ResumeExperienceEntry[]): string {
   return experiences
     .map((entry) => {
@@ -147,7 +123,6 @@ export function renderResumeHtml(
   }
 
   const labels = HTML_LABELS[candidate.documentLanguage];
-  const avatarDataUri = createAvatarDataUri(candidate);
   const technologies = candidate.coreTechnologies
     .map((technology) => `<li class="token token-surface">${escapeHtml(technology)}</li>`)
     .join('');
@@ -199,7 +174,7 @@ export function renderResumeHtml(
       <section class="resume-shell">
         <aside class="resume-sidebar">
           <div class="identity-block">
-            <img class="avatar" src="${avatarDataUri}" alt="${escapeHtml(candidate.fullName)}" />
+            <img class="avatar" src="${candidate.photo.dataUri}" alt="${escapeHtml(candidate.fullName)}" />
             <div class="identity-copy">
               <p class="eyebrow eyebrow-inverse">${escapeHtml(labels.profile)}</p>
               <h1 class="candidate-name">${escapeHtml(candidate.fullName)}</h1>
