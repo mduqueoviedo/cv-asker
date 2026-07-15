@@ -1,25 +1,90 @@
 import { env, getOpenRouterApiKey } from '../../config/env.js';
+import {
+  getDefaultResumeLlmModel,
+  resumeGenerationConfig,
+} from '../../config/resume-generation.js';
+import { fetchAiJsonWithRetry } from './ai-http.service.js';
 import type {
   OpenRouterChatCompletionResponse,
+  OpenRouterMessageContentPart,
   OpenRouterMessage,
+  OpenRouterPlugin,
+  OpenRouterProviderPreferences,
+  OpenRouterResponseFormat,
 } from '../../types/openrouter.js';
 
 export interface GenerateTextCompletionInput {
   prompt: string;
   systemInstruction?: string;
+  model?: string;
+  maxTokens?: number;
+  responseFormat?: OpenRouterResponseFormat;
+  plugins?: OpenRouterPlugin[];
+  provider?: OpenRouterProviderPreferences;
+  assistantPrefill?: string;
+}
+
+function extractMessageContent(
+  content: string | OpenRouterMessageContentPart[] | undefined
+): string {
+  if (typeof content === 'string') {
+    return content.trim();
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .filter((part) => !part?.type || part.type === 'text')
+      .map((part) => (typeof part?.text === 'string' ? part.text : ''))
+      .join('')
+      .trim();
+  }
+
+  return '';
+}
+
+function createEmptyPayloadError(
+  data: OpenRouterChatCompletionResponse,
+  model: string
+): Error {
+  const firstChoice = data.choices?.[0];
+  const details = firstChoice
+    ? JSON.stringify(
+        {
+          finish_reason: firstChoice.finish_reason,
+          text: firstChoice.text,
+          message: firstChoice.message,
+        },
+        null,
+        2
+      )
+    : 'No choices were returned.';
+
+  return new Error(
+    `OpenRouter returned an empty completion payload for model "${model}". First choice: ${details}`
+  );
 }
 
 export async function generateTextCompletion(
   input: GenerateTextCompletionInput
 ): Promise<string> {
+  const model = input.model ?? getDefaultResumeLlmModel();
+  const requestStartedAt = Date.now();
   const messages: OpenRouterMessage[] = [
     ...(input.systemInstruction
       ? [{ role: 'system' as const, content: input.systemInstruction }]
       : []),
     { role: 'user', content: input.prompt },
+    ...(input.assistantPrefill
+      ? [{ role: 'assistant' as const, content: input.assistantPrefill }]
+      : []),
   ];
 
-  const response = await fetch(env.openRouterApiUrl, {
+  console.log(
+    `[AI Completion] Request started (model=${model}, messages=${messages.length}, promptChars=${input.prompt.length})`
+  );
+
+  const data = await fetchAiJsonWithRetry<OpenRouterChatCompletionResponse>({
+    url: resumeGenerationConfig.openRouter.chatApiUrl,
     method: 'POST',
     headers: {
       Authorization: `Bearer ${getOpenRouterApiKey()}`,
@@ -28,22 +93,31 @@ export async function generateTextCompletion(
       'X-Title': env.appTitle,
     },
     body: JSON.stringify({
-      model: env.openRouterModel,
+      model,
       messages,
+      max_tokens: input.maxTokens ?? resumeGenerationConfig.textGeneration.completionMaxTokens,
+      response_format: input.responseFormat,
+      plugins: input.plugins,
+      provider: input.provider,
     }),
+    timeoutMs: resumeGenerationConfig.aiRequest.timeoutMs,
+    maxRetries: resumeGenerationConfig.aiRequest.maxRetries,
+    baseDelayMs: resumeGenerationConfig.aiRequest.baseDelayMs,
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenRouter API response status: ${response.status} - ${errorText}`);
-  }
-
-  const data = (await response.json()) as OpenRouterChatCompletionResponse;
-  const completionText = data.choices?.[0]?.message?.content?.trim();
+  const firstChoice = data.choices?.[0];
+  const completionText =
+    extractMessageContent(firstChoice?.message?.content) ||
+    firstChoice?.message?.reasoning?.trim() ||
+    firstChoice?.text?.trim() ||
+    '';
 
   if (!completionText) {
-    throw new Error('OpenRouter returned an empty completion payload.');
+    throw createEmptyPayloadError(data, model);
   }
+
+  console.log(
+    `[AI Completion] Request completed (model=${model}, outputChars=${completionText.length}, elapsedMs=${Date.now() - requestStartedAt})`
+  );
 
   return completionText;
 }

@@ -39,7 +39,7 @@ Build an AI-powered CV screener that allows a user to ask natural-language quest
 
 ### 4.1 Frontend
 
-- Use Next.js with React for the user-facing application.
+- Use a simple web frontend for the user-facing application.
 - The frontend and backend should feel like one unified product.
 
 ### 4.2 Backend

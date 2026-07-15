@@ -3,8 +3,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const DEFAULT_PORT = 3000;
-const DEFAULT_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 function parsePort(value: string | undefined): number {
   if (!value) {
@@ -19,12 +17,9 @@ function parsePort(value: string | undefined): number {
 
   return parsedPort;
 }
-
 export const env = {
   appTitle: 'CV Asker',
   port: parsePort(process.env.PORT),
-  openRouterApiUrl: OPENROUTER_API_URL,
-  openRouterModel: process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL,
 };
 
 export function getOpenRouterApiKey(): string {
@@ -35,4 +30,8 @@ export function getOpenRouterApiKey(): string {
   }
 
   return apiKey;
+}
+
+export function hasOpenRouterApiKey(): boolean {
+  return Boolean(process.env.OPENROUTER_API_KEY?.trim());
 }

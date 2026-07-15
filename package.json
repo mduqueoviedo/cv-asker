@@ -4,9 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build:resume-styles": "node ./scripts/build-resume-styles.mjs",
+    "copy:resume-assets": "node ./scripts/copy-resume-assets.mjs",
+    "dev": "node ./scripts/build-resume-styles.mjs && tsx watch src/index.ts",
+    "build": "node ./scripts/build-resume-styles.mjs && tsc && node ./scripts/copy-resume-assets.mjs",
+    "generate": "node ./scripts/build-resume-styles.mjs && tsx src/scripts/smoke-generate-resumes.ts"
   },
   "keywords": [],
   "author": "",
@@ -26,7 +28,11 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@faker-js/faker": "^10.5.0",
+    "@tailwindcss/cli": "^4.3.2",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "puppeteer": "^25.3.0",
+    "tailwindcss": "^4.3.2"
   }
 }
