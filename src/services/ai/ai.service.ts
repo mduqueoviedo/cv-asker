@@ -1,4 +1,5 @@
 import { env, getOpenRouterApiKey } from '../../config/env.js';
+import { fetchAiJsonWithRetry } from './ai-http.service.js';
 import type {
   OpenRouterChatCompletionResponse,
   OpenRouterMessage,
@@ -19,7 +20,8 @@ export async function generateTextCompletion(
     { role: 'user', content: input.prompt },
   ];
 
-  const response = await fetch(env.openRouterApiUrl, {
+  const data = await fetchAiJsonWithRetry<OpenRouterChatCompletionResponse>({
+    url: env.openRouterApiUrl,
     method: 'POST',
     headers: {
       Authorization: `Bearer ${getOpenRouterApiKey()}`,
@@ -31,14 +33,10 @@ export async function generateTextCompletion(
       model: env.openRouterModel,
       messages,
     }),
+    timeoutMs: env.aiRequestTimeoutMs,
+    maxRetries: env.aiRequestMaxRetries,
+    baseDelayMs: env.aiRequestBaseDelayMs,
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenRouter API response status: ${response.status} - ${errorText}`);
-  }
-
-  const data = (await response.json()) as OpenRouterChatCompletionResponse;
   const completionText = data.choices?.[0]?.message?.content?.trim();
 
   if (!completionText) {

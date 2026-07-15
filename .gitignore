@@ -3,6 +3,7 @@ dist/
 .env
 .pnpm-store/
 .DS_Store
+storage/
 
 .agents/
 .codex/

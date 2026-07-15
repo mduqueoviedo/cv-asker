@@ -5,6 +5,9 @@ dotenv.config();
 const DEFAULT_PORT = 3000;
 const DEFAULT_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const DEFAULT_AI_REQUEST_TIMEOUT_MS = 20_000;
+const DEFAULT_AI_REQUEST_MAX_RETRIES = 2;
+const DEFAULT_AI_REQUEST_BASE_DELAY_MS = 600;
 
 function parsePort(value: string | undefined): number {
   if (!value) {
@@ -20,11 +23,40 @@ function parsePort(value: string | undefined): number {
   return parsedPort;
 }
 
+function parsePositiveInteger(value: string | undefined, defaultValue: number, variableName: string): number {
+  if (!value) {
+    return defaultValue;
+  }
+
+  const parsedValue = Number(value);
+
+  if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
+    throw new Error(`${variableName} must be a positive integer.`);
+  }
+
+  return parsedValue;
+}
+
 export const env = {
   appTitle: 'CV Asker',
   port: parsePort(process.env.PORT),
   openRouterApiUrl: OPENROUTER_API_URL,
   openRouterModel: process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL,
+  aiRequestTimeoutMs: parsePositiveInteger(
+    process.env.AI_REQUEST_TIMEOUT_MS,
+    DEFAULT_AI_REQUEST_TIMEOUT_MS,
+    'AI_REQUEST_TIMEOUT_MS'
+  ),
+  aiRequestMaxRetries: parsePositiveInteger(
+    process.env.AI_REQUEST_MAX_RETRIES,
+    DEFAULT_AI_REQUEST_MAX_RETRIES,
+    'AI_REQUEST_MAX_RETRIES'
+  ),
+  aiRequestBaseDelayMs: parsePositiveInteger(
+    process.env.AI_REQUEST_BASE_DELAY_MS,
+    DEFAULT_AI_REQUEST_BASE_DELAY_MS,
+    'AI_REQUEST_BASE_DELAY_MS'
+  ),
 };
 
 export function getOpenRouterApiKey(): string {
