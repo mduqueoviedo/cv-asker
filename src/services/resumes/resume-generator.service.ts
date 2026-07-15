@@ -11,13 +11,13 @@ import type {
   ResumeTemplateId,
   ResumeTextGenerationMetadata,
 } from '../../types/resume.js';
-import { renderResumePdf } from './resume-pdf.service.js';
 import { createFakerResumeSeedDataProvider } from './resume-faker-data.provider.js';
 import {
   generateResumeProfiles,
   type ResumeGeneratedProfile,
   type ResumeProfileDraft,
 } from './resume-llm-text.service.js';
+import { createResumePdfRenderer } from './resume-renderer.service.js';
 
 const DEFAULT_RESUME_COUNT = 28;
 const MIN_RESUME_COUNT = 25;
@@ -179,13 +179,13 @@ function applyProfileToCandidate(
 async function writeCandidateArtifacts(
   candidate: CandidateResume,
   llmModel: string,
-  template: ResumeTemplateId
+  template: ResumeTemplateId,
+  pdfBuffer: Buffer
 ): Promise<GeneratedResumeArtifact> {
   const pdfFileName = `${candidate.id}.pdf`;
   const metadataFileName = `${candidate.id}.json`;
   const pdfFilePath = path.join(PDF_DIRECTORY, pdfFileName);
   const metadataFilePath = path.join(METADATA_DIRECTORY, metadataFileName);
-  const pdfBuffer = renderResumePdf(candidate);
 
   await writeFile(pdfFilePath, pdfBuffer);
   await writeFile(metadataFilePath, JSON.stringify(candidate, null, 2));
@@ -244,9 +244,19 @@ export async function generateResumeDataset(
 
     return applyProfileToCandidate(candidate, profile);
   });
-  const newResumes = await Promise.all(
-    candidates.map((candidate) => writeCandidateArtifacts(candidate, llmModel, template))
-  );
+  const pdfRenderer = await createResumePdfRenderer();
+  const newResumes: GeneratedResumeArtifact[] = [];
+
+  try {
+    for (const candidate of candidates) {
+      const pdfBuffer = await pdfRenderer.render(candidate, template);
+      const artifact = await writeCandidateArtifacts(candidate, llmModel, template, pdfBuffer);
+      newResumes.push(artifact);
+    }
+  } finally {
+    await pdfRenderer.close();
+  }
+
   const resumes = mode === 'append' ? [...existingResumes, ...newResumes] : newResumes;
   const manifest: ResumeDatasetManifest = {
     datasetId: `generated-resume-dataset-${new Date().toISOString()}`,

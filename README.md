@@ -46,6 +46,10 @@ Resume generation API
 
 - `pnpm dev`: Run the backend in watch mode.
 - `pnpm build`: Compile the TypeScript backend into `dist`.
+- `pnpm generate:resumes`: Delete the previous generated dataset and create a fresh default batch of 25 resumes in `es-ES`.
+- `pnpm generate:resumes:en`: Delete the previous generated dataset and create a fresh default batch of 25 resumes in English.
+- `pnpm generate:resumes:append`: Append a default batch of 25 resumes in `es-ES` to the current dataset.
+- `pnpm smoke:resumes -- --count 25 --language es-ES`: Run a full local resume-generation smoke test without starting the HTTP server.
 
 The backend starts on `http://localhost:3000` by default.
 
@@ -94,6 +98,27 @@ Example request body:
   "llmModel": "meta-llama/llama-3.3-70b-instruct:free",
   "template": "aurora-split"
 }
+```
+
+Example smoke command:
+
+```bash
+pnpm smoke:resumes -- --count 25 --mode replace --language es-ES --template aurora-split
+```
+
+Default generation command:
+
+```bash
+pnpm generate:resumes
+```
+
+This command always runs in `replace` mode, so it removes the previously generated dataset before creating a new one.
+
+Other shortcuts:
+
+```bash
+pnpm generate:resumes:en
+pnpm generate:resumes:append
 ```
 
 ## Environment Variables
