@@ -5,6 +5,8 @@ export interface ResumeLanguage {
 
 export type ResumeDocumentLanguage = 'en' | 'es-ES';
 export type ResumeTemplateId = 'aurora-split' | 'paper-compact';
+export type ResumeDocumentLanguageSelection = ResumeDocumentLanguage | 'mixed';
+export type ResumeTemplateSelection = ResumeTemplateId | 'mixed';
 export type ResumeGrammaticalGender = 'feminine' | 'masculine';
 
 export interface ResumeEducationEntry {
@@ -72,6 +74,7 @@ export interface CandidateResume {
 }
 
 export interface StoredCandidateResume extends Omit<CandidateResume, 'photo'> {
+  template: ResumeTemplateId;
   photo: StoredResumePhotoAsset;
 }
 
@@ -94,10 +97,10 @@ export interface GenerateResumeDatasetInput {
   count?: number;
   mode?: ResumeGenerationMode;
   cleanOutput?: boolean;
-  language?: ResumeDocumentLanguage;
+  language?: ResumeDocumentLanguageSelection;
   llmModel?: string;
   llmModels?: string[];
-  template?: ResumeTemplateId;
+  template?: ResumeTemplateSelection;
 }
 
 export interface ResumeTextGenerationMetadata {
@@ -122,8 +125,10 @@ export interface ResumeDatasetManifest {
   generatedAt: string;
   lastGenerationMode: ResumeGenerationMode;
   lastBatchCount: number;
-  lastBatchLanguage: ResumeDocumentLanguage;
-  lastTemplate: ResumeTemplateId;
+  lastBatchLanguage: ResumeDocumentLanguageSelection;
+  lastBatchLanguages: ResumeDocumentLanguage[];
+  lastTemplate: ResumeTemplateSelection;
+  lastBatchTemplates: ResumeTemplateId[];
   lastTextGeneration: ResumeTextGenerationMetadata;
   lastImageGeneration: ResumeImageGenerationMetadata;
   outputDirectory: string;

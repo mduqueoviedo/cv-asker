@@ -1,10 +1,15 @@
 import type {
   ResumeDocumentLanguage,
+  ResumeDocumentLanguageSelection,
   ResumeGenerationMode,
   ResumeTemplateId,
+  ResumeTemplateSelection,
 } from '../types/resume.js';
 
-const SUPPORTED_RESUME_LANGUAGES = ['en', 'es-ES'] as const satisfies readonly ResumeDocumentLanguage[];
+export const supportedResumeLanguages = [
+  'en',
+  'es-ES',
+] as const satisfies readonly ResumeDocumentLanguage[];
 export const supportedResumeTemplates = [
   'aurora-split',
   'paper-compact',
@@ -17,10 +22,10 @@ const DEFAULT_OPENROUTER_MODELS = [
 
 export const resumeGenerationConfig = {
   defaults: {
-    count: 3,
+    count: 5,
     mode: 'replace' as ResumeGenerationMode,
-    language: 'es-ES' as ResumeDocumentLanguage,
-    template: 'aurora-split' as ResumeTemplateId,
+    language: 'mixed' as ResumeDocumentLanguageSelection,
+    template: 'mixed' as ResumeTemplateSelection,
   },
   limits: {
     count: {
@@ -63,7 +68,7 @@ export function getDefaultResumeLlmModel(): string {
 }
 
 export function isResumeDocumentLanguage(value: string): value is ResumeDocumentLanguage {
-  return SUPPORTED_RESUME_LANGUAGES.includes(value as ResumeDocumentLanguage);
+  return supportedResumeLanguages.includes(value as ResumeDocumentLanguage);
 }
 
 export function isResumeTemplateId(value: string): value is ResumeTemplateId {

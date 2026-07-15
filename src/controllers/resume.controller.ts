@@ -4,19 +4,19 @@ import {
   getResumeDatasetStorageSnapshot,
 } from '../services/resumes/resume-generator.service.js';
 import type {
-  ResumeDocumentLanguage,
+  ResumeDocumentLanguageSelection,
   ResumeGenerationMode,
-  ResumeTemplateId,
+  ResumeTemplateSelection,
 } from '../types/resume.js';
 
 interface GenerateResumeRequestBody {
   count?: number;
   mode?: ResumeGenerationMode;
   cleanOutput?: boolean;
-  language?: ResumeDocumentLanguage;
+  language?: ResumeDocumentLanguageSelection;
   llmModel?: string;
   llmModels?: string[];
-  template?: ResumeTemplateId;
+  template?: ResumeTemplateSelection;
 }
 
 export const generateResumes: RequestHandler<

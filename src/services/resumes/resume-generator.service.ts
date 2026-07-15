@@ -7,6 +7,7 @@ import {
   isResumeDocumentLanguage,
   isResumeTemplateId,
   resumeGenerationConfig,
+  supportedResumeLanguages,
   supportedResumeTemplates,
 } from '../../config/resume-generation.js';
 import type {
@@ -16,9 +17,11 @@ import type {
   ResumeImageGenerationMetadata,
   ResumeDatasetManifest,
   ResumeDocumentLanguage,
+  ResumeDocumentLanguageSelection,
   ResumeGenerationMode,
   StoredCandidateResume,
   ResumeTemplateId,
+  ResumeTemplateSelection,
   ResumeTextGenerationMetadata,
 } from '../../types/resume.js';
 import { createFakerResumeSeedDataProvider } from './resume-faker-data.provider.js';
@@ -53,6 +56,16 @@ interface CandidateResumeDraft
   > {
   seed: number;
   grammaticalGender: ResumeProfileDraft['grammaticalGender'];
+}
+
+interface PlannedResumeDraft {
+  draft: CandidateResumeDraft;
+  template: ResumeTemplateId;
+}
+
+interface PlannedResumeCandidate {
+  candidate: CandidateResume;
+  template: ResumeTemplateId;
 }
 
 function createSlug(value: string): string {
@@ -101,21 +114,27 @@ function resolveGenerationMode(input: GenerateResumeDatasetInput): ResumeGenerat
   return resumeGenerationConfig.defaults.mode;
 }
 
-function resolveDocumentLanguage(input: GenerateResumeDatasetInput): ResumeDocumentLanguage {
+function resolveDocumentLanguageSelection(
+  input: GenerateResumeDatasetInput
+): ResumeDocumentLanguageSelection {
   const language = input.language ?? resumeGenerationConfig.defaults.language;
 
-  if (!isResumeDocumentLanguage(language)) {
-    throw new Error('Resume language must be either "en" or "es-ES".');
+  if (language !== 'mixed' && !isResumeDocumentLanguage(language)) {
+    throw new Error('Resume language must be either "en", "es-ES", or "mixed".');
   }
 
   return language;
 }
 
-function resolveResumeTemplate(input: GenerateResumeDatasetInput): ResumeTemplateId {
+function resolveResumeTemplateSelection(
+  input: GenerateResumeDatasetInput
+): ResumeTemplateSelection {
   const template = input.template ?? resumeGenerationConfig.defaults.template;
 
-  if (!isResumeTemplateId(template)) {
-    throw new Error(`Resume template must be one of: ${supportedResumeTemplates.join(', ')}.`);
+  if (template !== 'mixed' && !isResumeTemplateId(template)) {
+    throw new Error(
+      `Resume template must be one of: ${supportedResumeTemplates.join(', ')}, or "mixed".`
+    );
   }
 
   return template;
@@ -146,6 +165,61 @@ async function ensureOutputDirectories(mode: ResumeGenerationMode) {
 function createTotalExperienceYears(index: number, age: number): number {
   const baselineExperience = 2 + ((index * 3) % 10);
   return Math.max(2, Math.min(age - 21, baselineExperience));
+}
+
+function createSeededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let next = Math.imul(state ^ (state >>> 15), 1 | state);
+    next ^= next + Math.imul(next ^ (next >>> 7), 61 | next);
+    return ((next ^ (next >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+function shuffleInPlace<T>(values: T[], seed: number): T[] {
+  const random = createSeededRandom(seed);
+
+  for (let index = values.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [values[index], values[swapIndex]] = [values[swapIndex], values[index]];
+  }
+
+  return values;
+}
+
+function createBalancedAssignments<T>(values: readonly T[], count: number, seed: number): T[] {
+  const assignments = Array.from({ length: count }, (_, index) => values[index % values.length] as T);
+  return shuffleInPlace(assignments, seed);
+}
+
+function resolveLanguageAssignments(
+  count: number,
+  selection: ResumeDocumentLanguageSelection,
+  seed: number
+): ResumeDocumentLanguage[] {
+  if (selection === 'mixed') {
+    return createBalancedAssignments(supportedResumeLanguages, count, seed);
+  }
+
+  return Array.from({ length: count }, () => selection);
+}
+
+function resolveTemplateAssignments(
+  count: number,
+  selection: ResumeTemplateSelection,
+  seed: number
+): ResumeTemplateId[] {
+  if (selection === 'mixed') {
+    return createBalancedAssignments(supportedResumeTemplates, count, seed ^ 0x9e3779b9);
+  }
+
+  return Array.from({ length: count }, () => selection);
+}
+
+function collectUsedValues<T extends string>(values: Iterable<T>): T[] {
+  return [...new Set(values)];
 }
 
 function createCandidateDraft(
@@ -226,6 +300,7 @@ async function writeCandidateArtifacts(
   const metadataFilePath = path.join(METADATA_DIRECTORY, metadataFileName);
   const metadata: StoredCandidateResume = {
     ...candidate,
+    template,
     photo: {
       provider: candidate.photo.provider,
       mimeType: candidate.photo.mimeType,
@@ -298,13 +373,15 @@ export async function generateResumeDataset(
   const generationStartedAt = Date.now();
   const count = clampResumeCount(input.count ?? resumeGenerationConfig.defaults.count);
   const mode = resolveGenerationMode(input);
-  const language = resolveDocumentLanguage(input);
-  const template = resolveResumeTemplate(input);
+  const language = resolveDocumentLanguageSelection(input);
+  const template = resolveResumeTemplateSelection(input);
   const llmModels = resolveRequestedModels(input);
   const existingManifest = mode === 'append' ? await getResumeDatasetManifest() : null;
   const existingResumes = existingManifest?.resumes ?? [];
   const startIndex = existingResumes.length;
   const variationSeed = randomInt(1, 2_147_483_647);
+  const languageAssignments = resolveLanguageAssignments(count, language, variationSeed);
+  const templateAssignments = resolveTemplateAssignments(count, template, variationSeed);
 
   console.log(
     `[Resume Generator] Starting dataset generation: count=${count} mode=${mode} language=${language} template=${template} models=${llmModels.join(', ')}`
@@ -313,10 +390,14 @@ export async function generateResumeDataset(
   await ensureOutputDirectories(mode);
   console.log('[Resume Generator] Output directories ready.');
 
-  const candidateDrafts = Array.from({ length: count }, (_, index) =>
-    createCandidateDraft(startIndex + index, language, variationSeed)
+  const plannedDrafts: PlannedResumeDraft[] = Array.from({ length: count }, (_, index) => ({
+    draft: createCandidateDraft(startIndex + index, languageAssignments[index], variationSeed),
+    template: templateAssignments[index],
+  }));
+  const candidateDrafts = plannedDrafts.map(({ draft }) => draft);
+  console.log(
+    `[Resume Generator] Created ${candidateDrafts.length} candidate seeds across languages=${collectUsedValues(languageAssignments).join(', ')} templates=${collectUsedValues(templateAssignments).join(', ')}.`
   );
-  console.log(`[Resume Generator] Created ${candidateDrafts.length} candidate seeds.`);
   const llmStartedAt = Date.now();
   const profiles = await generateResumeProfiles({
     drafts: candidateDrafts.map((candidate) => createProfileDraft(candidate)),
@@ -326,35 +407,42 @@ export async function generateResumeDataset(
   console.log(
     `[Resume Generator] Resume text ready: ${profiles.size}/${candidateDrafts.length} (elapsedMs=${Date.now() - llmStartedAt}).`
   );
-  const candidates = candidateDrafts.map((candidate) => {
-    const profile = profiles.get(candidate.id);
+  const plannedCandidates: PlannedResumeCandidate[] = plannedDrafts.map(({ draft, template: assignedTemplate }) => {
+    const profile = profiles.get(draft.id);
 
     if (!profile) {
-      throw new Error(`No profile was generated for candidate "${candidate.id}".`);
+      throw new Error(`No profile was generated for candidate "${draft.id}".`);
     }
 
-    return applyProfileToCandidate(candidate, profile);
+    return {
+      candidate: applyProfileToCandidate(draft, profile),
+      template: assignedTemplate,
+    };
   });
-  const candidatesWithPhotos: CandidateResume[] = [];
+  const candidatesWithPhotos: PlannedResumeCandidate[] = [];
   const photoGenerationStartedAt = Date.now();
 
-  for (const [candidateIndex, candidate] of candidates.entries()) {
+  for (const [candidateIndex, plannedCandidate] of plannedCandidates.entries()) {
+    const { candidate, template: assignedTemplate } = plannedCandidate;
     const photoStartedAt = Date.now();
     console.log(
-      `[Resume Photos] Generating photo ${candidateIndex + 1}/${candidates.length} for ${candidate.id} using ${resumeGenerationConfig.imageGeneration.provider}/${resumeGenerationConfig.imageGeneration.model}`
+      `[Resume Photos] Generating photo ${candidateIndex + 1}/${plannedCandidates.length} for ${candidate.id} using ${resumeGenerationConfig.imageGeneration.provider}/${resumeGenerationConfig.imageGeneration.model}`
     );
     const photo = await generateResumePhoto(candidate);
     candidatesWithPhotos.push({
-      ...candidate,
-      photo,
+      candidate: {
+        ...candidate,
+        photo,
+      },
+      template: assignedTemplate,
     });
     console.log(
-      `[Resume Photos] Completed photo ${candidateIndex + 1}/${candidates.length} for ${candidate.id} (elapsedMs=${Date.now() - photoStartedAt})`
+      `[Resume Photos] Completed photo ${candidateIndex + 1}/${plannedCandidates.length} for ${candidate.id} (elapsedMs=${Date.now() - photoStartedAt})`
     );
   }
 
   console.log(
-    `[Resume Photos] All photos generated (${candidatesWithPhotos.length}/${candidates.length}, elapsedMs=${Date.now() - photoGenerationStartedAt})`
+    `[Resume Photos] All photos generated (${candidatesWithPhotos.length}/${plannedCandidates.length}, elapsedMs=${Date.now() - photoGenerationStartedAt})`
   );
 
   const pdfRenderer = await createResumePdfRenderer();
@@ -362,19 +450,25 @@ export async function generateResumeDataset(
   const renderStartedAt = Date.now();
 
   try {
-    for (const [candidateIndex, candidate] of candidatesWithPhotos.entries()) {
+    for (const [candidateIndex, plannedCandidate] of candidatesWithPhotos.entries()) {
+      const { candidate, template: assignedTemplate } = plannedCandidate;
       const candidateRenderStartedAt = Date.now();
       console.log(
         `[Resume Renderer] Rendering PDF ${candidateIndex + 1}/${candidatesWithPhotos.length} for ${candidate.id}`
       );
-      const pdfBuffer = await pdfRenderer.render(candidate, template);
+      const pdfBuffer = await pdfRenderer.render(candidate, assignedTemplate);
       const profile = profiles.get(candidate.id);
 
       if (!profile) {
         throw new Error(`No profile metadata was retained for candidate "${candidate.id}".`);
       }
 
-      const artifact = await writeCandidateArtifacts(candidate, profile.llmModel, template, pdfBuffer);
+      const artifact = await writeCandidateArtifacts(
+        candidate,
+        profile.llmModel,
+        assignedTemplate,
+        pdfBuffer
+      );
       newResumes.push(artifact);
       console.log(
         `[Resume Renderer] Stored PDF ${candidateIndex + 1}/${candidatesWithPhotos.length} at ${artifact.pdfFilePath} (elapsedMs=${Date.now() - candidateRenderStartedAt})`
@@ -396,7 +490,9 @@ export async function generateResumeDataset(
     lastGenerationMode: mode,
     lastBatchCount: newResumes.length,
     lastBatchLanguage: language,
+    lastBatchLanguages: collectUsedValues(newResumes.map((resume) => resume.documentLanguage)),
     lastTemplate: template,
+    lastBatchTemplates: collectUsedValues(newResumes.map((resume) => resume.template)),
     lastTextGeneration: createTextGenerationMetadata(llmModels, usedModels, profiles.values()),
     lastImageGeneration: createImageGenerationMetadata(candidatesWithPhotos.length),
     outputDirectory: OUTPUT_DIRECTORY,
@@ -446,6 +542,17 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
     return {
       ...manifest,
       lastTemplate: manifest.lastTemplate ?? resumeGenerationConfig.defaults.template,
+      lastBatchLanguage: manifest.lastBatchLanguage ?? resumeGenerationConfig.defaults.language,
+      lastBatchLanguages:
+        manifest.lastBatchLanguages && manifest.lastBatchLanguages.length > 0
+          ? manifest.lastBatchLanguages
+          : collectUsedValues(
+              (manifest.resumes ?? []).map((resume) => resume.documentLanguage)
+            ),
+      lastBatchTemplates:
+        manifest.lastBatchTemplates && manifest.lastBatchTemplates.length > 0
+          ? manifest.lastBatchTemplates
+          : collectUsedValues((manifest.resumes ?? []).map((resume) => resume.template)),
       lastTextGeneration: manifest.lastTextGeneration
         ? {
             ...manifest.lastTextGeneration,

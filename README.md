@@ -87,12 +87,12 @@ AI and generation defaults now live in `src/config/resume-generation.ts`, so `.e
 - Personal seed data and the full resume structure come from `faker` plus small local catalogs.
 - OpenRouter is used only to enrich the professional summary and highlights, keeping token usage and failure surface low.
 - The CV flow uses a generic image-generation layer to create a realistic synthetic profile photo for every candidate via OpenRouter image generation.
-- Supported document languages are `en` and `es-ES`.
+- Supported document languages are `en` and `es-ES`, and the default generation mode mixes both within the same dataset.
 - Resume templates are now modeled explicitly so the renderer can move to HTML-to-PDF later without changing the dataset shape.
+- Supported resume templates are `aurora-split` and `paper-compact`, and the default generation mode mixes both within the same dataset.
 - HTML should be treated as a transient render step and cleaned up once its PDF counterpart has been produced.
-- The current default template is `aurora-split`.
 - Output is written under `storage/generated-resumes/`.
-- JSON metadata is stored only as a derived artifact of the fresh resumes, to support later ingestion steps.
+- JSON metadata is stored only as a derived artifact of the fresh resumes, to support later ingestion steps, and each metadata file includes the final `documentLanguage` and `template` used for that candidate.
 - Generated photos are used only during rendering and are not persisted as separate files.
 - Each generated artifact records the language and the model used for text enrichment, or `local/base-profile` when the local copy is kept.
 - When multiple models are configured, the generator tries them in order and keeps valid local copy if all enrichment attempts fail.
@@ -104,13 +104,13 @@ Example request body:
 {
   "count": 28,
   "mode": "replace",
-  "language": "es-ES",
+  "language": "mixed",
   "llmModels": [
     "google/gemini-2.5-flash-lite",
     "google/gemma-3-27b-it:free",
     "openai/gpt-oss-20b:free"
   ],
-  "template": "aurora-split"
+  "template": "mixed"
 }
 ```
 
@@ -132,7 +132,7 @@ Default generation command:
 pnpm generate
 ```
 
-This command always runs in `replace` mode, so it removes the previously generated dataset before creating a new one.
+This command always runs in `replace` mode, so it removes the previously generated dataset before creating a new one. By default it also mixes the supported resume languages and templates inside the generated batch.
 
 ## Environment Variables
 

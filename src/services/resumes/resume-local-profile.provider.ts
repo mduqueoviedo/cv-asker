@@ -402,6 +402,7 @@ function createExperienceTitle(
 }
 
 function createExperienceAchievements(
+  fakerInstance: Faker,
   language: ResumeDocumentLanguage,
   role: string,
   domain: string,
@@ -410,18 +411,67 @@ function createExperienceAchievements(
 ): string[] {
   const primaryTechnology = technologies[index % technologies.length];
   const secondaryTechnology = technologies[(index + 2) % technologies.length];
+  const tertiaryTechnology = technologies[(index + 4) % technologies.length];
+  const achievementCount = fakerInstance.number.int({ min: 1, max: 2 });
 
-  if (language === 'es-ES') {
-    return [
-      `Impulso mejoras en ${domain} usando ${primaryTechnology} y ${secondaryTechnology}, con foco en calidad tecnica y entrega continua.`,
-      `Colaboro con producto y diseno para simplificar decisiones, reducir incidencias y dar continuidad al trabajo de ${role.toLowerCase()}.`,
-    ];
+  const achievementOptions =
+    language === 'es-ES'
+      ? [
+          `Desarrollo mejoras de producto en ${domain} usando ${primaryTechnology} y ${secondaryTechnology}, con foco en calidad tecnica y entregas predecibles.`,
+          `Impulso iniciativas internas con ${primaryTechnology} para simplificar procesos del equipo y reducir friccion operativa.`,
+          `Colaboro con producto y diseno para aterrizar requisitos ambiguos y convertirlos en entregables mantenibles.`,
+          `Refuerzo la estabilidad de soluciones en ${domain} mejorando pruebas, observabilidad y consistencia en la implementacion.`,
+          `Participo en decisiones tecnicas con ${secondaryTechnology} y ${tertiaryTechnology} para sostener el roadmap sin degradar la calidad.`,
+          `Aporto criterio de ${role.toLowerCase()} para priorizar mejoras incrementales y acelerar la entrega de valor.`,
+        ]
+      : [
+          `Delivered product improvements for ${domain} using ${primaryTechnology} and ${secondaryTechnology}, with strong attention to engineering quality and predictable delivery.`,
+          `Built internal tooling with ${primaryTechnology} to simplify team workflows and reduce day-to-day operational friction.`,
+          `Partnered with product and design to turn ambiguous requirements into maintainable delivery increments.`,
+          `Improved reliability across ${domain} surfaces through better testing, observability, and implementation consistency.`,
+          `Contributed technical direction with ${secondaryTechnology} and ${tertiaryTechnology} to keep the roadmap moving without sacrificing quality.`,
+          `Brought ${role.toLowerCase()} judgment to prioritize incremental improvements and speed up value delivery.`,
+        ];
+
+  return fakerInstance.helpers.arrayElements(achievementOptions, achievementCount);
+}
+
+function createExperienceEntryCount(
+  fakerInstance: Faker,
+  totalExperienceYears: number
+): number {
+  if (totalExperienceYears <= 3) {
+    return fakerInstance.number.int({ min: 1, max: 2 });
   }
 
-  return [
-    `Shipped improvements for ${domain} using ${primaryTechnology} and ${secondaryTechnology}, with strong attention to engineering quality and steady delivery.`,
-    `Partnered with product and design to simplify decisions, reduce incidents, and keep the ${role.toLowerCase()} roadmap moving.`,
-  ];
+  if (totalExperienceYears <= 6) {
+    return fakerInstance.number.int({ min: 2, max: 3 });
+  }
+
+  return fakerInstance.number.int({ min: 2, max: 4 });
+}
+
+function createExperienceDurations(
+  fakerInstance: Faker,
+  totalExperienceYears: number,
+  totalEntries: number
+): number[] {
+  const normalizedYears = Math.max(totalExperienceYears, totalEntries);
+  const durations = Array.from({ length: totalEntries }, () => 1);
+  let remainingYears = normalizedYears - totalEntries;
+
+  if (remainingYears > 0) {
+    durations[totalEntries - 1] += 1;
+    remainingYears -= 1;
+  }
+
+  while (remainingYears > 0) {
+    const targetIndex = fakerInstance.number.int({ min: 0, max: totalEntries - 1 });
+    durations[targetIndex] += 1;
+    remainingYears -= 1;
+  }
+
+  return durations;
 }
 
 function createCompanyNames(fakerInstance: Faker, count: number): string[] {
@@ -444,18 +494,25 @@ function createExperience(
   technologies: string[]
 ): ResumeExperienceEntry[] {
   const language = draft.documentLanguage;
-  const totalEntries = draft.totalExperienceYears >= 7 ? 3 : 2;
+  const totalEntries = createExperienceEntryCount(fakerInstance, draft.totalExperienceYears);
   const currentYear = new Date().getFullYear();
   const experiences: ResumeExperienceEntry[] = [];
   const companyNames = createCompanyNames(fakerInstance, totalEntries);
+  const entryDurations = createExperienceDurations(
+    fakerInstance,
+    draft.totalExperienceYears,
+    totalEntries
+  );
 
   for (let index = 0; index < totalEntries; index += 1) {
-    const yearsAgoEnd = (totalEntries - index - 1) * 2;
-    const endYear = index === totalEntries - 1 ? null : currentYear - yearsAgoEnd;
-    const startYear =
-      index === totalEntries - 1
-        ? currentYear - Math.min(draft.totalExperienceYears, 3)
-        : currentYear - yearsAgoEnd - 2;
+    const durationYears = entryDurations[index];
+    const isCurrentRole = index === totalEntries - 1;
+    const yearsAfterEntry = entryDurations
+      .slice(index + 1)
+      .reduce((total, years) => total + years, 0);
+    const resolvedEndYear = currentYear - yearsAfterEntry;
+    const endYear = isCurrentRole ? null : resolvedEndYear;
+    const startYear = resolvedEndYear - durationYears + 1;
 
     experiences.push({
       company: companyNames[index],
@@ -467,9 +524,10 @@ function createExperience(
             ? 'Actualidad'
             : 'Present'
           : language === 'es-ES'
-            ? `Dic ${endYear}`
-            : `Dec ${endYear}`,
+              ? `Dic ${endYear}`
+              : `Dec ${endYear}`,
       achievements: createExperienceAchievements(
+        fakerInstance,
         language,
         role,
         domain,

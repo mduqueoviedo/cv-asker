@@ -63,6 +63,28 @@ function chunkArray<T>(values: T[], size: number): Array<T[]> {
   return chunks;
 }
 
+function groupDraftsByLanguage(
+  drafts: ResumeProfileDraft[]
+): Array<{ language: ResumeDocumentLanguage; drafts: ResumeProfileDraft[] }> {
+  const grouped = new Map<ResumeDocumentLanguage, ResumeProfileDraft[]>();
+
+  for (const draft of drafts) {
+    const current = grouped.get(draft.documentLanguage);
+
+    if (current) {
+      current.push(draft);
+      continue;
+    }
+
+    grouped.set(draft.documentLanguage, [draft]);
+  }
+
+  return [...grouped.entries()].map(([language, groupedDrafts]) => ({
+    language,
+    drafts: groupedDrafts,
+  }));
+}
+
 function getLocaleInstruction(language: ResumeDocumentLanguage): string {
   return language === 'es-ES'
     ? 'Write all generated text in professional Spanish from Spain.'
@@ -320,61 +342,65 @@ export async function generateResumeProfiles(
     return profiles;
   }
 
-  const batches = chunkArray(input.drafts, Math.max(1, input.batchSize));
+  const draftGroups = groupDraftsByLanguage(input.drafts);
 
-  for (const [batchIndex, batchDrafts] of batches.entries()) {
-    const batchStart = batchIndex * Math.max(1, input.batchSize) + 1;
-    const batchEnd = batchStart + batchDrafts.length - 1;
-    const batchStartedAt = Date.now();
-    const batchLabel = `Batch ${batchIndex + 1}/${batches.length}`;
+  for (const [groupIndex, group] of draftGroups.entries()) {
+    const batches = chunkArray(group.drafts, Math.max(1, input.batchSize));
 
-    console.log(
-      `[Resume LLM] ${batchLabel} started (${batchStart}-${batchEnd} of ${input.drafts.length})`
-    );
+    for (const [batchIndex, batchDrafts] of batches.entries()) {
+      const batchStart = batchIndex * Math.max(1, input.batchSize) + 1;
+      const batchEnd = batchStart + batchDrafts.length - 1;
+      const batchStartedAt = Date.now();
+      const batchLabel = `Batch ${groupIndex + 1}.${batchIndex + 1}/${draftGroups.length}.${batches.length} (${group.language})`;
 
-    const batch = batchDrafts.map((draft) => {
-      const profile = profiles.get(draft.id);
-
-      if (!profile) {
-        throw new Error(`No base profile was created for candidate "${draft.id}".`);
-      }
-
-      return { draft, profile };
-    });
-
-    const enrichedBatch = await tryEnrichBatch(batch, input.models, batchLabel);
-
-    if (enrichedBatch) {
-      for (const [candidateId, profile] of enrichedBatch) {
-        profiles.set(candidateId, profile);
-      }
-    } else if (batch.length > 1) {
       console.log(
-        `[Resume LLM] ${batchLabel} retrying candidate-by-candidate before settling on local copy.`
+        `[Resume LLM] ${batchLabel} started (${batchStart}-${batchEnd} of ${group.drafts.length} for ${group.language})`
       );
 
-      for (const entry of batch) {
-        const enrichedSingle = await tryEnrichBatch(
-          [entry],
-          input.models,
-          `${batchLabel} candidate ${entry.draft.id}`
+      const batch = batchDrafts.map((draft) => {
+        const profile = profiles.get(draft.id);
+
+        if (!profile) {
+          throw new Error(`No base profile was created for candidate "${draft.id}".`);
+        }
+
+        return { draft, profile };
+      });
+
+      const enrichedBatch = await tryEnrichBatch(batch, input.models, batchLabel);
+
+      if (enrichedBatch) {
+        for (const [candidateId, profile] of enrichedBatch) {
+          profiles.set(candidateId, profile);
+        }
+      } else if (batch.length > 1) {
+        console.log(
+          `[Resume LLM] ${batchLabel} retrying candidate-by-candidate before settling on local copy.`
         );
 
-        if (!enrichedSingle) {
-          continue;
-        }
+        for (const entry of batch) {
+          const enrichedSingle = await tryEnrichBatch(
+            [entry],
+            input.models,
+            `${batchLabel} candidate ${entry.draft.id}`
+          );
 
-        const profile = enrichedSingle.get(entry.draft.id);
+          if (!enrichedSingle) {
+            continue;
+          }
 
-        if (profile) {
-          profiles.set(entry.draft.id, profile);
+          const profile = enrichedSingle.get(entry.draft.id);
+
+          if (profile) {
+            profiles.set(entry.draft.id, profile);
+          }
         }
       }
-    }
 
-    console.log(
-      `[Resume LLM] ${batchLabel} completed (elapsedMs=${Date.now() - batchStartedAt})`
-    );
+      console.log(
+        `[Resume LLM] ${batchLabel} completed (elapsedMs=${Date.now() - batchStartedAt})`
+      );
+    }
   }
 
   return profiles;

@@ -18,7 +18,6 @@ interface ResumeHtmlLabels {
   coreTechnologies: string;
   education: string;
   languages: string;
-  candidateId: string;
   portfolio: string;
   linkedin: string;
   location: string;
@@ -47,7 +46,6 @@ const HTML_LABELS: Record<ResumeDocumentLanguage, ResumeHtmlLabels> = {
     coreTechnologies: 'Core Technologies',
     education: 'Education',
     languages: 'Languages',
-    candidateId: 'Candidate ID',
     portfolio: 'Portfolio',
     linkedin: 'LinkedIn',
     location: 'Location',
@@ -67,7 +65,6 @@ const HTML_LABELS: Record<ResumeDocumentLanguage, ResumeHtmlLabels> = {
     coreTechnologies: 'Tecnologias principales',
     education: 'Formacion',
     languages: 'Idiomas',
-    candidateId: 'ID de candidato',
     portfolio: 'Portfolio',
     linkedin: 'LinkedIn',
     location: 'Ubicacion',
@@ -180,7 +177,6 @@ export function renderResumeHtml(
           <section class="sidebar-panel">
             <p class="eyebrow eyebrow-inverse">${escapeHtml(labels.contact)}</p>
             <ul class="contact-list">
-              <li class="contact-item"><span class="contact-label">${escapeHtml(labels.candidateId)}</span><strong class="contact-value">${escapeHtml(candidate.id)}</strong></li>
               <li class="contact-item"><span class="contact-label">${escapeHtml(labels.email)}</span><strong class="contact-value">${escapeHtml(candidate.email)}</strong></li>
               <li class="contact-item"><span class="contact-label">${escapeHtml(labels.phone)}</span><strong class="contact-value">${escapeHtml(candidate.phone)}</strong></li>
               <li class="contact-item"><span class="contact-label">${escapeHtml(labels.location)}</span><strong class="contact-value">${escapeHtml(candidate.location)}</strong></li>

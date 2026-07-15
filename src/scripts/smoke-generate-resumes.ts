@@ -6,20 +6,21 @@ import {
   isResumeDocumentLanguage,
   isResumeTemplateId,
   resumeGenerationConfig,
+  supportedResumeLanguages,
   supportedResumeTemplates,
 } from '../config/resume-generation.js';
 import { generateResumeDataset } from '../services/resumes/resume-generator.service.js';
 import type {
-  ResumeDocumentLanguage,
+  ResumeDocumentLanguageSelection,
   ResumeGenerationMode,
-  ResumeTemplateId,
+  ResumeTemplateSelection,
 } from '../types/resume.js';
 
 interface SmokeOptions {
   count: number;
   mode: ResumeGenerationMode;
-  language: ResumeDocumentLanguage;
-  template: ResumeTemplateId;
+  language: ResumeDocumentLanguageSelection;
+  template: ResumeTemplateSelection;
   llmModel?: string;
   llmModels?: string[];
 }
@@ -66,8 +67,8 @@ function parseArguments(argv: string[]): SmokeOptions {
     }
 
     if (argument === '--language' && nextValue) {
-      if (!isResumeDocumentLanguage(nextValue)) {
-        throw new Error('`--language` must be either `en` or `es-ES`.');
+      if (nextValue !== 'mixed' && !isResumeDocumentLanguage(nextValue)) {
+        throw new Error('`--language` must be `en`, `es-ES`, or `mixed`.');
       }
 
       options.language = nextValue;
@@ -76,9 +77,9 @@ function parseArguments(argv: string[]): SmokeOptions {
     }
 
     if (argument === '--template' && nextValue) {
-      if (!isResumeTemplateId(nextValue)) {
+      if (nextValue !== 'mixed' && !isResumeTemplateId(nextValue)) {
         throw new Error(
-          `\`--template\` must be one of: ${supportedResumeTemplates.join(', ')}.`
+          `\`--template\` must be one of: ${supportedResumeTemplates.join(', ')}, or \`mixed\`.`
         );
       }
 
@@ -119,30 +120,36 @@ Options:
   --count <number>       Number of CVs to generate. Default: ${resumeGenerationConfig.defaults.count}
   --mode <replace|append>
                          Generation mode. Default: ${resumeGenerationConfig.defaults.mode}
-  --language <en|es-ES>  Resume language. Default: ${resumeGenerationConfig.defaults.language}
-  --template <id>        Resume template (${supportedResumeTemplates.join(', ')}). Default: ${resumeGenerationConfig.defaults.template}
+  --language <en|es-ES|mixed>
+                         Resume language selection. Supported languages: ${supportedResumeLanguages.join(', ')}. Default: ${resumeGenerationConfig.defaults.language}
+  --template <id|mixed>  Resume template (${supportedResumeTemplates.join(', ')}). Default: ${resumeGenerationConfig.defaults.template}
   --model <name>         Optional OpenRouter model override
   --models <a,b,c>       Optional comma-separated OpenRouter fallback list
   --help                 Show this help message
 `);
 }
 
-async function ensureStylesAreBuilt(template: ResumeTemplateId) {
-  const stylesPath = path.join(
-    process.cwd(),
-    'src',
-    'services',
-    'resumes',
-    'templates',
-    `${template}.generated.css`
-  );
+async function ensureStylesAreBuilt(templateSelection: ResumeTemplateSelection) {
+  const templates =
+    templateSelection === 'mixed' ? [...supportedResumeTemplates] : [templateSelection];
 
-  try {
-    await access(stylesPath);
-  } catch {
-    throw new Error(
-      `Missing compiled template CSS at ${stylesPath}. Run \`pnpm build:resume-styles\` first.`
+  for (const template of templates) {
+    const stylesPath = path.join(
+      process.cwd(),
+      'src',
+      'services',
+      'resumes',
+      'templates',
+      `${template}.generated.css`
     );
+
+    try {
+      await access(stylesPath);
+    } catch {
+      throw new Error(
+        `Missing compiled template CSS at ${stylesPath}. Run \`pnpm build:resume-styles\` first.`
+      );
+    }
   }
 }
 
@@ -183,6 +190,8 @@ async function main() {
   console.log(`[Smoke] metadataDirectory=${manifest.metadataDirectory}`);
   console.log(`[Smoke] preferredModel=${manifest.lastTextGeneration.model}`);
   console.log(`[Smoke] strategy=${manifest.lastTextGeneration.strategy}`);
+  console.log(`[Smoke] batchLanguages=${manifest.lastBatchLanguages.join(', ')}`);
+  console.log(`[Smoke] batchTemplates=${manifest.lastBatchTemplates.join(', ')}`);
   console.log(`[Smoke] configuredModels=${manifest.lastTextGeneration.models.join(', ')}`);
   console.log(`[Smoke] usedModels=${manifest.lastTextGeneration.usedModels.join(', ')}`);
   console.log(`[Smoke] enrichedProfiles=${manifest.lastTextGeneration.enrichedProfileCount}`);
