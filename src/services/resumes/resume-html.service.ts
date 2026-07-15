@@ -117,11 +117,6 @@ export function renderResumeHtml(
   options: RenderResumeHtmlOptions
 ): string {
   const template = options.template ?? DEFAULT_TEMPLATE;
-
-  if (template !== DEFAULT_TEMPLATE) {
-    throw new Error(`Resume template "${template}" is not supported.`);
-  }
-
   const labels = HTML_LABELS[candidate.documentLanguage];
   const technologies = candidate.coreTechnologies
     .map((technology) => `<li class="token token-surface">${escapeHtml(technology)}</li>`)
@@ -185,14 +180,14 @@ export function renderResumeHtml(
           <section class="sidebar-panel">
             <p class="eyebrow eyebrow-inverse">${escapeHtml(labels.contact)}</p>
             <ul class="contact-list">
-              <li class="meta-row"><span>${escapeHtml(labels.candidateId)}</span><strong>${escapeHtml(candidate.id)}</strong></li>
-              <li class="meta-row"><span>${escapeHtml(labels.email)}</span><strong>${escapeHtml(candidate.email)}</strong></li>
-              <li class="meta-row"><span>${escapeHtml(labels.phone)}</span><strong>${escapeHtml(candidate.phone)}</strong></li>
-              <li class="meta-row"><span>${escapeHtml(labels.location)}</span><strong>${escapeHtml(candidate.location)}</strong></li>
-              <li class="meta-row"><span>${escapeHtml(labels.linkedin)}</span><strong>${escapeHtml(candidate.linkedinUrl)}</strong></li>
+              <li class="contact-item"><span class="contact-label">${escapeHtml(labels.candidateId)}</span><strong class="contact-value">${escapeHtml(candidate.id)}</strong></li>
+              <li class="contact-item"><span class="contact-label">${escapeHtml(labels.email)}</span><strong class="contact-value">${escapeHtml(candidate.email)}</strong></li>
+              <li class="contact-item"><span class="contact-label">${escapeHtml(labels.phone)}</span><strong class="contact-value">${escapeHtml(candidate.phone)}</strong></li>
+              <li class="contact-item"><span class="contact-label">${escapeHtml(labels.location)}</span><strong class="contact-value">${escapeHtml(candidate.location)}</strong></li>
+              <li class="contact-item"><span class="contact-label">${escapeHtml(labels.linkedin)}</span><strong class="contact-value">${escapeHtml(candidate.linkedinUrl)}</strong></li>
               ${
                 candidate.portfolioUrl
-                  ? `<li class="meta-row"><span>${escapeHtml(labels.portfolio)}</span><strong>${escapeHtml(candidate.portfolioUrl)}</strong></li>`
+                  ? `<li class="contact-item"><span class="contact-label">${escapeHtml(labels.portfolio)}</span><strong class="contact-value">${escapeHtml(candidate.portfolioUrl)}</strong></li>`
                   : ''
               }
             </ul>
@@ -228,27 +223,26 @@ export function renderResumeHtml(
             <div class="hero-copy">
               <p class="eyebrow">${escapeHtml(labels.professionalSummary)}</p>
               <h2 class="hero-title">${escapeHtml(candidate.primaryRole)}</h2>
-              <p class="hero-summary">${escapeHtml(candidate.summary)}</p>
             </div>
-            <span class="template-badge">${escapeHtml(template)}</span>
+            <p class="hero-summary">${escapeHtml(candidate.summary)}</p>
           </header>
 
-          <section class="content-section">
+          <section class="content-section content-section-highlights">
             <h2 class="section-title">${escapeHtml(labels.highlights)}</h2>
             <ul class="highlight-list">${highlights}</ul>
           </section>
 
-          <section class="content-section">
+          <section class="content-section content-section-technologies">
             <h2 class="section-title">${escapeHtml(labels.coreTechnologies)}</h2>
             <ul class="token-list token-list-main">${technologies}</ul>
           </section>
 
-          <section class="content-section">
+          <section class="content-section content-section-experience">
             <h2 class="section-title">${escapeHtml(labels.workExperience)}</h2>
             <div class="timeline-list">${renderExperienceItems(candidate.experience)}</div>
           </section>
 
-          <section class="content-section">
+          <section class="content-section content-section-education">
             <h2 class="section-title">${escapeHtml(labels.education)}</h2>
             <div class="education-list">${education}</div>
           </section>

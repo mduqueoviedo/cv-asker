@@ -8,6 +8,16 @@ import type {
 } from '../../types/resume.js';
 import type { ResumeGeneratedProfile, ResumeProfileDraft } from './resume-llm-text.service.js';
 
+interface EducationInstitutionOption {
+  institution: string;
+  location: string;
+}
+
+interface OptionalLanguageOption {
+  name: string;
+  levels: string[];
+}
+
 const ENGLISH_ROLE_CATALOG = [
   'Frontend Engineer',
   'Full Stack Developer',
@@ -130,6 +140,28 @@ const EDUCATION_CATALOG = {
   ],
 } as const;
 
+const EDUCATION_INSTITUTION_CATALOG: Record<
+  ResumeDocumentLanguage,
+  readonly EducationInstitutionOption[]
+> = {
+  en: [
+    { institution: 'University of Manchester', location: 'Manchester, United Kingdom' },
+    { institution: 'University of Leeds', location: 'Leeds, United Kingdom' },
+    { institution: 'Kingston University', location: 'London, United Kingdom' },
+    { institution: 'University College Dublin', location: 'Dublin, Ireland' },
+    { institution: 'University of Amsterdam', location: 'Amsterdam, Netherlands' },
+    { institution: 'Technical University of Berlin', location: 'Berlin, Germany' },
+  ],
+  'es-ES': [
+    { institution: 'Universidad Autonoma de Madrid', location: 'Madrid, Spain' },
+    { institution: 'Universitat Politecnica de Catalunya', location: 'Barcelona, Spain' },
+    { institution: 'Universidad de Granada', location: 'Granada, Spain' },
+    { institution: 'Universidad de Valencia', location: 'Valencia, Spain' },
+    { institution: 'Universidad de Sevilla', location: 'Sevilla, Spain' },
+    { institution: 'Universidad de La Laguna', location: 'San Cristobal de La Laguna, Spain' },
+  ],
+} as const;
+
 const CERTIFICATION_CATALOG = [
   'AWS Certified Developer',
   'Microsoft Azure Fundamentals',
@@ -137,18 +169,70 @@ const CERTIFICATION_CATALOG = [
   'Google Cloud Digital Leader',
   'Meta Front-End Developer Certificate',
   'MongoDB Associate Developer',
+  'Terraform Associate',
+  'CKAD',
+  'ICAg Accessibility for Web Designers',
+  'Databricks Data Engineer Associate',
 ] as const;
 
-const COMPANY_CATALOG = [
-  'Northstar Labs',
-  'Atlas Commerce',
-  'Signal Forge',
-  'Blue Harbor Cloud',
-  'Nova Metrics',
-  'Pixel Foundry',
-  'Vector Health',
-  'Orbit Systems',
+const COMPANY_PREFIX_CATALOG = [
+  'Northstar',
+  'Atlas',
+  'Signal',
+  'Blue Harbor',
+  'Nova',
+  'Pixel',
+  'Vector',
+  'Orbit',
+  'Summit',
+  'Lattice',
+  'Brightpath',
+  'Riverstone',
+  'Granite',
+  'Aster',
+  'Cedar',
+  'Skyline',
+  'Vertex',
+  'Maple',
 ] as const;
+
+const COMPANY_SUFFIX_CATALOG = [
+  'Labs',
+  'Systems',
+  'Cloud',
+  'Commerce',
+  'Analytics',
+  'Works',
+  'Platform',
+  'Dynamics',
+  'Software',
+  'Digital',
+  'Collective',
+  'Data',
+  'Studios',
+] as const;
+
+const OPTIONAL_LANGUAGE_CATALOG: Record<
+  ResumeDocumentLanguage,
+  readonly OptionalLanguageOption[]
+> = {
+  en: [
+    { name: 'Spanish', levels: ['B1', 'B2', 'C1'] },
+    { name: 'French', levels: ['B1', 'B2', 'C1'] },
+    { name: 'German', levels: ['B1', 'B2'] },
+    { name: 'Dutch', levels: ['B1', 'B2'] },
+    { name: 'Portuguese', levels: ['B1', 'B2'] },
+    { name: 'Italian', levels: ['B1', 'B2'] },
+  ],
+  'es-ES': [
+    { name: 'Ingles', levels: ['B2', 'C1', 'C2'] },
+    { name: 'Frances', levels: ['B1', 'B2', 'C1'] },
+    { name: 'Aleman', levels: ['B1', 'B2'] },
+    { name: 'Italiano', levels: ['B1', 'B2'] },
+    { name: 'Portugues', levels: ['B1', 'B2'] },
+    { name: 'Catalan', levels: ['B2', 'C1'] },
+  ],
+} as const;
 
 function createScopedFaker(language: ResumeDocumentLanguage, seed: number): Faker {
   const fakerInstance = new Faker({
@@ -158,40 +242,57 @@ function createScopedFaker(language: ResumeDocumentLanguage, seed: number): Fake
   return fakerInstance;
 }
 
-function createSeedFromId(value: string): number {
-  let hash = 0;
-
-  for (const character of value) {
-    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  }
-
-  return hash || 1;
-}
-
-function pickMany<T>(values: readonly T[], count: number, offset: number): T[] {
-  const result: T[] = [];
-
-  for (let index = 0; index < count; index += 1) {
-    result.push(values[(offset + index) % values.length] as T);
-  }
-
-  return result;
-}
-
 function pickOne<T>(values: readonly T[], offset: number): T {
   return values[offset % values.length] as T;
 }
 
-function createSpokenLanguages(language: ResumeDocumentLanguage): ResumeLanguage[] {
-  return language === 'es-ES'
-    ? [
-        { name: 'Espanol', level: 'Nativo' },
-        { name: 'Ingles', level: 'C1' },
-      ]
-    : [
-        { name: 'English', level: 'Native' },
-        { name: 'Spanish', level: 'C1' },
-      ];
+function pickRandomSubset<T>(fakerInstance: Faker, values: readonly T[], count: number): T[] {
+  return fakerInstance.helpers.arrayElements([...values], count);
+}
+
+function createSpokenLanguages(
+  fakerInstance: Faker,
+  language: ResumeDocumentLanguage
+): ResumeLanguage[] {
+  if (language === 'es-ES') {
+    const englishLevel = fakerInstance.helpers.arrayElement(['B2', 'C1', 'C2']);
+    const optionalCount = fakerInstance.number.int({ min: 0, max: 2 });
+    const optionalLanguages = pickRandomSubset(
+      fakerInstance,
+      OPTIONAL_LANGUAGE_CATALOG['es-ES'].filter((entry) => entry.name !== 'Ingles'),
+      optionalCount
+    ).map((entry) => ({
+      name: entry.name,
+      level: fakerInstance.helpers.arrayElement([...entry.levels]),
+    }));
+
+    return [
+      { name: 'Espanol', level: 'Nativo' },
+      { name: 'Ingles', level: englishLevel },
+      ...optionalLanguages,
+    ];
+  }
+
+  const primaryForeignLanguage = fakerInstance.helpers.arrayElement(OPTIONAL_LANGUAGE_CATALOG.en);
+  const extraCandidates = OPTIONAL_LANGUAGE_CATALOG.en.filter(
+    (entry) => entry.name !== primaryForeignLanguage.name
+  );
+  const optionalCount = fakerInstance.number.int({ min: 0, max: 1 });
+  const optionalLanguages = pickRandomSubset(fakerInstance, extraCandidates, optionalCount).map(
+    (entry) => ({
+      name: entry.name,
+      level: fakerInstance.helpers.arrayElement([...entry.levels]),
+    })
+  );
+
+  return [
+    { name: 'English', level: 'Native' },
+    {
+      name: primaryForeignLanguage.name,
+      level: fakerInstance.helpers.arrayElement([...primaryForeignLanguage.levels]),
+    },
+    ...optionalLanguages,
+  ];
 }
 
 function createEducation(
@@ -200,21 +301,16 @@ function createEducation(
 ): ResumeEducationEntry[] {
   const language = draft.documentLanguage;
   const degreeCatalog = EDUCATION_CATALOG[language];
+  const institutionCatalog = EDUCATION_INSTITUTION_CATALOG[language];
   const endYear = new Date().getFullYear() - Math.max(4, draft.totalExperienceYears);
   const startYear = endYear - 4;
+  const institution = fakerInstance.helpers.arrayElement(institutionCatalog);
 
   return [
     {
       degree: degreeCatalog[fakerInstance.number.int({ min: 0, max: degreeCatalog.length - 1 })],
-      institution: fakerInstance.helpers.arrayElement([
-        'Universidad Autonoma de Madrid',
-        'Universitat Politecnica de Catalunya',
-        'University of Manchester',
-        'University of Leeds',
-        'Universidad de Granada',
-        'Kingston University',
-      ]),
-      location: draft.location,
+      institution: institution.institution,
+      location: institution.location,
       startYear,
       endYear,
     },
@@ -241,14 +337,12 @@ function createRole(draft: ResumeProfileDraft, baseRole: string): string {
   return `Senior ${baseRole}`;
 }
 
-function createBaseRole(
-  draft: ResumeProfileDraft,
-  fakerInstance: Faker
-): string {
+function createBaseRole(draft: ResumeProfileDraft, fakerInstance: Faker): string {
   if (draft.documentLanguage === 'es-ES') {
-    const role = SPANISH_ROLE_CATALOG[
-      fakerInstance.number.int({ min: 0, max: SPANISH_ROLE_CATALOG.length - 1 })
-    ];
+    const role =
+      SPANISH_ROLE_CATALOG[
+        fakerInstance.number.int({ min: 0, max: SPANISH_ROLE_CATALOG.length - 1 })
+      ];
 
     return draft.grammaticalGender === 'feminine' ? role.feminine : role.masculine;
   }
@@ -330,6 +424,18 @@ function createExperienceAchievements(
   ];
 }
 
+function createCompanyNames(fakerInstance: Faker, count: number): string[] {
+  const companies = new Set<string>();
+
+  while (companies.size < count) {
+    const prefix = fakerInstance.helpers.arrayElement(COMPANY_PREFIX_CATALOG);
+    const suffix = fakerInstance.helpers.arrayElement(COMPANY_SUFFIX_CATALOG);
+    companies.add(`${prefix} ${suffix}`);
+  }
+
+  return [...companies];
+}
+
 function createExperience(
   fakerInstance: Faker,
   draft: ResumeProfileDraft,
@@ -341,8 +447,7 @@ function createExperience(
   const totalEntries = draft.totalExperienceYears >= 7 ? 3 : 2;
   const currentYear = new Date().getFullYear();
   const experiences: ResumeExperienceEntry[] = [];
-  const companyOffset = fakerInstance.number.int({ min: 0, max: COMPANY_CATALOG.length - 1 });
-  const companyNames = pickMany(COMPANY_CATALOG, totalEntries, companyOffset);
+  const companyNames = createCompanyNames(fakerInstance, totalEntries);
 
   for (let index = 0; index < totalEntries; index += 1) {
     const yearsAgoEnd = (totalEntries - index - 1) * 2;
@@ -412,12 +517,10 @@ function createHighlights(
 }
 
 export function createLocalResumeProfile(draft: ResumeProfileDraft): ResumeGeneratedProfile {
-  const seed = createSeedFromId(draft.id);
-  const fakerInstance = createScopedFaker(draft.documentLanguage, seed);
+  const fakerInstance = createScopedFaker(draft.documentLanguage, draft.seed);
   const baseRole = createBaseRole(draft, fakerInstance);
   const role = createRole(draft, baseRole);
-  const technologyOffset = fakerInstance.number.int({ min: 0, max: TECHNOLOGY_CATALOG.length - 1 });
-  const coreTechnologies = pickMany(TECHNOLOGY_CATALOG, 6, technologyOffset);
+  const coreTechnologies = pickRandomSubset(fakerInstance, TECHNOLOGY_CATALOG, 6);
   const domain = pickOne(
     DOMAIN_CATALOG[draft.documentLanguage],
     fakerInstance.number.int({ min: 0, max: DOMAIN_CATALOG[draft.documentLanguage].length - 1 })
@@ -443,14 +546,14 @@ export function createLocalResumeProfile(draft: ResumeProfileDraft): ResumeGener
       specialty
     ),
     coreTechnologies,
-    spokenLanguages: createSpokenLanguages(draft.documentLanguage),
+    spokenLanguages: createSpokenLanguages(fakerInstance, draft.documentLanguage),
     education: createEducation(fakerInstance, draft),
     experience: createExperience(fakerInstance, draft, role, domain, coreTechnologies),
     highlights: createHighlights(draft.documentLanguage, role, coreTechnologies, specialty),
-    certifications: pickMany(
+    certifications: pickRandomSubset(
+      fakerInstance,
       CERTIFICATION_CATALOG,
-      fakerInstance.number.int({ min: 1, max: 2 }),
-      fakerInstance.number.int({ min: 0, max: CERTIFICATION_CATALOG.length - 1 })
+      fakerInstance.number.int({ min: 1, max: 3 })
     ),
     includePortfolio: fakerInstance.datatype.boolean({
       probability:

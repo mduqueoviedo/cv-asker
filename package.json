@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build:resume-styles": "./node_modules/.bin/tailwindcss -i ./src/services/resumes/templates/aurora-split.css -o ./src/services/resumes/templates/aurora-split.generated.css --minify",
+    "build:resume-styles": "node ./scripts/build-resume-styles.mjs",
     "copy:resume-assets": "node ./scripts/copy-resume-assets.mjs",
-    "dev": "./node_modules/.bin/tailwindcss -i ./src/services/resumes/templates/aurora-split.css -o ./src/services/resumes/templates/aurora-split.generated.css --minify && tsx watch src/index.ts",
-    "build": "./node_modules/.bin/tailwindcss -i ./src/services/resumes/templates/aurora-split.css -o ./src/services/resumes/templates/aurora-split.generated.css --minify && tsc && node ./scripts/copy-resume-assets.mjs",
-    "generate": "./node_modules/.bin/tailwindcss -i ./src/services/resumes/templates/aurora-split.css -o ./src/services/resumes/templates/aurora-split.generated.css --minify && tsx src/scripts/smoke-generate-resumes.ts"
+    "dev": "node ./scripts/build-resume-styles.mjs && tsx watch src/index.ts",
+    "build": "node ./scripts/build-resume-styles.mjs && tsc && node ./scripts/copy-resume-assets.mjs",
+    "generate": "node ./scripts/build-resume-styles.mjs && tsx src/scripts/smoke-generate-resumes.ts"
   },
   "keywords": [],
   "author": "",

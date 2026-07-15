@@ -5,7 +5,10 @@ import type {
 } from '../types/resume.js';
 
 const SUPPORTED_RESUME_LANGUAGES = ['en', 'es-ES'] as const satisfies readonly ResumeDocumentLanguage[];
-const SUPPORTED_RESUME_TEMPLATES = ['aurora-split'] as const satisfies readonly ResumeTemplateId[];
+export const supportedResumeTemplates = [
+  'aurora-split',
+  'paper-compact',
+] as const satisfies readonly ResumeTemplateId[];
 const DEFAULT_OPENROUTER_MODELS = [
   'google/gemini-2.5-flash-lite',
   'google/gemma-3-27b-it:free',
@@ -64,5 +67,5 @@ export function isResumeDocumentLanguage(value: string): value is ResumeDocument
 }
 
 export function isResumeTemplateId(value: string): value is ResumeTemplateId {
-  return SUPPORTED_RESUME_TEMPLATES.includes(value as ResumeTemplateId);
+  return supportedResumeTemplates.includes(value as ResumeTemplateId);
 }

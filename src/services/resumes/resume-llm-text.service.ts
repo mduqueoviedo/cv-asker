@@ -12,6 +12,7 @@ import { createLocalResumeProfile } from './resume-local-profile.provider.js';
 
 export interface ResumeProfileDraft {
   id: string;
+  seed: number;
   documentLanguage: ResumeDocumentLanguage;
   fullName: string;
   grammaticalGender: ResumeGrammaticalGender;

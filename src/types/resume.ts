@@ -4,7 +4,7 @@ export interface ResumeLanguage {
 }
 
 export type ResumeDocumentLanguage = 'en' | 'es-ES';
-export type ResumeTemplateId = 'aurora-split';
+export type ResumeTemplateId = 'aurora-split' | 'paper-compact';
 export type ResumeGrammaticalGender = 'feminine' | 'masculine';
 
 export interface ResumeEducationEntry {

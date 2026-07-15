@@ -1,4 +1,5 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { randomInt } from 'node:crypto';
 import path from 'node:path';
 import { hasOpenRouterApiKey } from '../../config/env.js';
 import {
@@ -6,6 +7,7 @@ import {
   isResumeDocumentLanguage,
   isResumeTemplateId,
   resumeGenerationConfig,
+  supportedResumeTemplates,
 } from '../../config/resume-generation.js';
 import type {
   CandidateResume,
@@ -49,6 +51,7 @@ interface CandidateResumeDraft
     | 'portfolioUrl'
     | 'photo'
   > {
+  seed: number;
   grammaticalGender: ResumeProfileDraft['grammaticalGender'];
 }
 
@@ -112,7 +115,7 @@ function resolveResumeTemplate(input: GenerateResumeDatasetInput): ResumeTemplat
   const template = input.template ?? resumeGenerationConfig.defaults.template;
 
   if (!isResumeTemplateId(template)) {
-    throw new Error(`Resume template must be "${resumeGenerationConfig.defaults.template}".`);
+    throw new Error(`Resume template must be one of: ${supportedResumeTemplates.join(', ')}.`);
   }
 
   return template;
@@ -147,14 +150,16 @@ function createTotalExperienceYears(index: number, age: number): number {
 
 function createCandidateDraft(
   index: number,
-  language: ResumeDocumentLanguage
+  language: ResumeDocumentLanguage,
+  variationSeed: number
 ): CandidateResumeDraft {
-  const personSeed = resumeSeedDataProvider.createPersonSeed(index, language);
+  const personSeed = resumeSeedDataProvider.createPersonSeed(index, language, variationSeed);
   const slug = createSlug(personSeed.fullName);
   const id = `${slug}-${index + 1}`;
 
   return {
     id,
+    seed: personSeed.seed,
     documentLanguage: language,
     fullName: personSeed.fullName,
     grammaticalGender: personSeed.grammaticalGender,
@@ -171,6 +176,7 @@ function createCandidateDraft(
 function createProfileDraft(candidate: CandidateResumeDraft): ResumeProfileDraft {
   return {
     id: candidate.id,
+    seed: candidate.seed,
     documentLanguage: candidate.documentLanguage,
     fullName: candidate.fullName,
     grammaticalGender: candidate.grammaticalGender,
@@ -184,10 +190,11 @@ function applyProfileToCandidate(
   candidate: CandidateResumeDraft,
   profile: ResumeGeneratedProfile
 ): CandidateResume {
+  const { seed: _seed, ...candidateWithoutSeed } = candidate;
   const slug = createSlug(candidate.fullName);
 
   return {
-    ...candidate,
+    ...candidateWithoutSeed,
     primaryRole: profile.primaryRole,
     portfolioUrl: profile.includePortfolio ? `${slug}.portfolio.example` : undefined,
     summary: profile.summary,
@@ -297,6 +304,7 @@ export async function generateResumeDataset(
   const existingManifest = mode === 'append' ? await getResumeDatasetManifest() : null;
   const existingResumes = existingManifest?.resumes ?? [];
   const startIndex = existingResumes.length;
+  const variationSeed = randomInt(1, 2_147_483_647);
 
   console.log(
     `[Resume Generator] Starting dataset generation: count=${count} mode=${mode} language=${language} template=${template} models=${llmModels.join(', ')}`
@@ -306,7 +314,7 @@ export async function generateResumeDataset(
   console.log('[Resume Generator] Output directories ready.');
 
   const candidateDrafts = Array.from({ length: count }, (_, index) =>
-    createCandidateDraft(startIndex + index, language)
+    createCandidateDraft(startIndex + index, language, variationSeed)
   );
   console.log(`[Resume Generator] Created ${candidateDrafts.length} candidate seeds.`);
   const llmStartedAt = Date.now();
