@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { env, hasImageGenerationApiKey } from '../../config/env.js';
+import { env, hasOpenRouterApiKey } from '../../config/env.js';
 import type {
   CandidateResume,
   GenerateResumeDatasetInput,
@@ -27,7 +27,6 @@ const MIN_RESUME_COUNT = 1;
 const MAX_RESUME_COUNT = 30;
 const OUTPUT_DIRECTORY = path.join(process.cwd(), 'storage', 'generated-resumes');
 const PDF_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'pdfs');
-const PHOTO_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'photos');
 const METADATA_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'metadata');
 const MANIFEST_PATH = path.join(OUTPUT_DIRECTORY, 'manifest.json');
 const LEGACY_HTML_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'html');
@@ -134,7 +133,6 @@ async function ensureOutputDirectories(mode: ResumeGenerationMode) {
 
   await rm(LEGACY_HTML_DIRECTORY, { recursive: true, force: true });
   await mkdir(PDF_DIRECTORY, { recursive: true });
-  await mkdir(PHOTO_DIRECTORY, { recursive: true });
   await mkdir(METADATA_DIRECTORY, { recursive: true });
 }
 
@@ -205,18 +203,6 @@ function applyProfileToCandidate(
   };
 }
 
-function getPhotoFileExtension(mimeType: string): string {
-  if (mimeType === 'image/png') {
-    return 'png';
-  }
-
-  if (mimeType === 'image/webp') {
-    return 'webp';
-  }
-
-  return 'jpg';
-}
-
 async function writeCandidateArtifacts(
   candidate: CandidateResume,
   llmModel: string,
@@ -224,26 +210,20 @@ async function writeCandidateArtifacts(
   pdfBuffer: Buffer
 ): Promise<GeneratedResumeArtifact> {
   const pdfFileName = `${candidate.id}.pdf`;
-  const photoFileName = `${candidate.id}.${getPhotoFileExtension(candidate.photo.mimeType)}`;
   const metadataFileName = `${candidate.id}.json`;
   const pdfFilePath = path.join(PDF_DIRECTORY, pdfFileName);
-  const photoFilePath = path.join(PHOTO_DIRECTORY, photoFileName);
   const metadataFilePath = path.join(METADATA_DIRECTORY, metadataFileName);
-  const photoBase64Data = candidate.photo.dataUri.replace(/^data:[^;]+;base64,/, '');
   const metadata: StoredCandidateResume = {
     ...candidate,
     photo: {
       provider: candidate.photo.provider,
       mimeType: candidate.photo.mimeType,
-      fileName: photoFileName,
-      filePath: photoFilePath,
       prompt: candidate.photo.prompt,
       model: candidate.photo.model,
     },
   };
 
   await writeFile(pdfFilePath, pdfBuffer);
-  await writeFile(photoFilePath, Buffer.from(photoBase64Data, 'base64'));
   await writeFile(metadataFilePath, JSON.stringify(metadata, null, 2));
 
   return {
@@ -255,8 +235,6 @@ async function writeCandidateArtifacts(
     template,
     pdfFileName,
     pdfFilePath,
-    photoFileName,
-    photoFilePath,
     metadataFileName,
     metadataFilePath,
   };
@@ -293,8 +271,8 @@ function createTextGenerationMetadata(
 
 function createImageGenerationMetadata(count: number): ResumeImageGenerationMetadata {
   return {
-    provider: env.imageGenerationProvider,
-    model: env.imageGenerationModel,
+    provider: 'openrouter',
+    model: env.openRouterImageModel,
     generatedPhotoCount: count,
   };
 }
@@ -302,7 +280,7 @@ function createImageGenerationMetadata(count: number): ResumeImageGenerationMeta
 export async function generateResumeDataset(
   input: GenerateResumeDatasetInput = {}
 ): Promise<ResumeDatasetManifest> {
-  if (!hasImageGenerationApiKey()) {
+  if (!hasOpenRouterApiKey()) {
     throw new Error('Image generation credentials are required to generate realistic resume photos.');
   }
 
@@ -351,7 +329,7 @@ export async function generateResumeDataset(
   for (const [candidateIndex, candidate] of candidates.entries()) {
     const photoStartedAt = Date.now();
     console.log(
-      `[Resume Photos] Generating photo ${candidateIndex + 1}/${candidates.length} for ${candidate.id} using ${env.imageGenerationProvider}/${env.imageGenerationModel}`
+      `[Resume Photos] Generating photo ${candidateIndex + 1}/${candidates.length} for ${candidate.id} using openrouter/${env.openRouterImageModel}`
     );
     const photo = await generateResumePhoto(candidate);
     candidatesWithPhotos.push({
@@ -411,7 +389,6 @@ export async function generateResumeDataset(
     lastImageGeneration: createImageGenerationMetadata(candidatesWithPhotos.length),
     outputDirectory: OUTPUT_DIRECTORY,
     pdfDirectory: PDF_DIRECTORY,
-    photoDirectory: PHOTO_DIRECTORY,
     metadataDirectory: METADATA_DIRECTORY,
     count: resumes.length,
     resumes,
@@ -427,17 +404,15 @@ export async function generateResumeDataset(
 
 export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest | null> {
   try {
-    const [manifestStats, pdfDirectoryStats, photoDirectoryStats, metadataDirectoryStats] = await Promise.all([
+    const [manifestStats, pdfDirectoryStats, metadataDirectoryStats] = await Promise.all([
       stat(MANIFEST_PATH),
       stat(PDF_DIRECTORY),
-      stat(PHOTO_DIRECTORY),
       stat(METADATA_DIRECTORY),
     ]);
 
     if (
       !manifestStats.isFile() ||
       !pdfDirectoryStats.isDirectory() ||
-      !photoDirectoryStats.isDirectory() ||
       !metadataDirectoryStats.isDirectory()
     ) {
       return null;
@@ -471,7 +446,6 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
           }
         : createTextGenerationMetadata(env.openRouterModels, env.openRouterModels, []),
       lastImageGeneration: manifest.lastImageGeneration ?? createImageGenerationMetadata(0),
-      photoDirectory: manifest.photoDirectory ?? PHOTO_DIRECTORY,
       resumes: (manifest.resumes ?? []).map((resume) => ({
         ...resume,
         template: resume.template ?? DEFAULT_RESUME_TEMPLATE,
@@ -489,16 +463,14 @@ export async function getResumeDatasetStorageSnapshot() {
     return null;
   }
 
-  const [pdfFiles, photoFiles, metadataFiles] = await Promise.all([
+  const [pdfFiles, metadataFiles] = await Promise.all([
     readdir(PDF_DIRECTORY),
-    readdir(PHOTO_DIRECTORY),
     readdir(METADATA_DIRECTORY),
   ]);
 
   return {
     manifest,
     pdfCount: pdfFiles.length,
-    photoCount: photoFiles.length,
     metadataCount: metadataFiles.length,
   };
 }

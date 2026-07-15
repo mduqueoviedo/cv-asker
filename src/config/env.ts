@@ -10,9 +10,20 @@ const DEFAULT_OPENROUTER_MODELS = [
   'openai/gpt-oss-20b:free',
 ] as const;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
-const DEFAULT_IMAGE_GENERATION_PROVIDER = 'gemini' as const;
-const DEFAULT_GEMINI_IMAGE_MODEL = 'gemini-3.1-flash-lite-image';
+const OPENROUTER_IMAGES_API_URL = 'https://openrouter.ai/api/v1/images';
+const DEFAULT_OPENROUTER_IMAGE_MODEL = 'google/gemini-2.5-flash-image';
+const LEGACY_IMAGE_PROVIDER_ALIASES = new Map<string, 'openrouter'>([
+  ['openrouter', 'openrouter'],
+  ['open-router', 'openrouter'],
+  ['gemini', 'openrouter'],
+]);
+const LEGACY_IMAGE_MODEL_ALIASES = new Map<string, string>([
+  ['gemini-2.5-flash-image', 'google/gemini-2.5-flash-image'],
+  ['gemini-3.1-flash-image', 'google/gemini-3.1-flash-image'],
+  // OpenRouter support for the Lite image slug is not verified here, so we fall back
+  // to the cheapest confirmed Gemini image slug currently available on OpenRouter.
+  ['gemini-3.1-flash-lite-image', DEFAULT_OPENROUTER_IMAGE_MODEL],
+]);
 const DEFAULT_AI_REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_AI_REQUEST_MAX_RETRIES = 2;
 const DEFAULT_AI_REQUEST_BASE_DELAY_MS = 600;
@@ -65,24 +76,6 @@ function parseNonEmptyStringList(value: string, variableName: string): string[] 
   return [...new Set(values)];
 }
 
-function parseNonEmptyString(
-  value: string | undefined,
-  defaultValue: string,
-  variableName: string
-): string {
-  if (!value) {
-    return defaultValue;
-  }
-
-  const normalizedValue = value.trim();
-
-  if (!normalizedValue) {
-    throw new Error(`${variableName} must be a non-empty string.`);
-  }
-
-  return normalizedValue;
-}
-
 function resolveOpenRouterModels(): string[] {
   if (process.env.OPENROUTER_MODELS) {
     return parseNonEmptyStringList(process.env.OPENROUTER_MODELS, 'OPENROUTER_MODELS');
@@ -112,46 +105,15 @@ function parseResumeDocumentLanguage(
 
   return value;
 }
-
-function parseImageGenerationProvider(value: string | undefined): 'gemini' {
-  const provider = value?.trim() ?? DEFAULT_IMAGE_GENERATION_PROVIDER;
-
-  if (provider !== 'gemini') {
-    throw new Error('IMAGE_GENERATION_PROVIDER must currently be "gemini".');
-  }
-
-  return provider;
-}
-
-function resolveImageGenerationModel(): string {
-  if (process.env.IMAGE_GENERATION_MODEL?.trim()) {
-    return process.env.IMAGE_GENERATION_MODEL.trim();
-  }
-
-  if (process.env.GEMINI_IMAGE_MODEL?.trim()) {
-    return process.env.GEMINI_IMAGE_MODEL.trim();
-  }
-
-  return DEFAULT_GEMINI_IMAGE_MODEL;
-}
-
-const imageGenerationProvider = parseImageGenerationProvider(process.env.IMAGE_GENERATION_PROVIDER);
-const imageGenerationModel = resolveImageGenerationModel();
-
 export const env = {
   appTitle: 'CV Asker',
   port: parsePort(process.env.PORT),
   openRouterApiUrl: OPENROUTER_API_URL,
+  openRouterImagesApiUrl: OPENROUTER_IMAGES_API_URL,
   openRouterModels,
   openRouterModel: openRouterModels[0],
-  imageGenerationProvider,
-  imageGenerationModel,
-  geminiApiUrl: GEMINI_API_URL,
-  geminiImageModel: parseNonEmptyString(
-    imageGenerationModel,
-    DEFAULT_GEMINI_IMAGE_MODEL,
-    'IMAGE_GENERATION_MODEL'
-  ),
+  imageGenerationProvider: 'openrouter' as const,
+  openRouterImageModel: DEFAULT_OPENROUTER_IMAGE_MODEL,
   aiRequestTimeoutMs: parsePositiveInteger(
     process.env.AI_REQUEST_TIMEOUT_MS,
     DEFAULT_AI_REQUEST_TIMEOUT_MS,
@@ -196,32 +158,4 @@ export function getOpenRouterApiKey(): string {
 
 export function hasOpenRouterApiKey(): boolean {
   return Boolean(process.env.OPENROUTER_API_KEY?.trim());
-}
-
-export function getGeminiApiKey(): string {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is required to generate resume photos.');
-  }
-
-  return apiKey;
-}
-
-export function hasGeminiApiKey(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY?.trim());
-}
-
-export function hasImageGenerationApiKey(): boolean {
-  switch (env.imageGenerationProvider) {
-    case 'gemini':
-      return hasGeminiApiKey();
-  }
-}
-
-export function getImageGenerationApiKey(): string {
-  switch (env.imageGenerationProvider) {
-    case 'gemini':
-      return getGeminiApiKey();
-  }
 }

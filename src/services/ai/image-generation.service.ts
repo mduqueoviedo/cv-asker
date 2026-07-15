@@ -1,5 +1,5 @@
 import { env } from '../../config/env.js';
-import { generateImageWithGemini } from './gemini-image.service.js';
+import { generateImageWithOpenRouter } from './openrouter-image.service.js';
 
 export interface GenerateImageInput {
   prompt: string;
@@ -7,6 +7,8 @@ export interface GenerateImageInput {
   mimeType?: 'image/jpeg' | 'image/png';
   aspectRatio?: string;
   imageSize?: string;
+  quality?: 'auto' | 'low' | 'medium' | 'high';
+  outputCompression?: number;
 }
 
 export interface GeneratedImage {
@@ -19,11 +21,8 @@ export interface GeneratedImage {
 }
 
 export async function generateImage(input: GenerateImageInput): Promise<GeneratedImage> {
-  switch (env.imageGenerationProvider) {
-    case 'gemini':
-      return generateImageWithGemini({
-        ...input,
-        model: input.model ?? env.imageGenerationModel,
-      });
-  }
+  return generateImageWithOpenRouter({
+    ...input,
+    model: input.model ?? env.openRouterImageModel,
+  });
 }

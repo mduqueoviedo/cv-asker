@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
-import { env, hasImageGenerationApiKey, hasOpenRouterApiKey } from '../config/env.js';
+import { env, hasOpenRouterApiKey } from '../config/env.js';
 import { generateResumeDataset } from '../services/resumes/resume-generator.service.js';
 import type {
   ResumeDocumentLanguage,
@@ -147,7 +147,7 @@ async function main() {
     (options.llmModel ? [options.llmModel] : env.openRouterModels);
 
   console.log('[Smoke] Preflight checks passed.');
-  if (!hasImageGenerationApiKey()) {
+  if (!hasOpenRouterApiKey()) {
     throw new Error('Image generation credentials are required to generate realistic resume photos.');
   }
   if (!hasOpenRouterApiKey()) {

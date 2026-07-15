@@ -1,4 +1,3 @@
-import { env } from '../../config/env.js';
 import type { CandidateResume, ResumePhotoAsset } from '../../types/resume.js';
 import { generateImage } from '../ai/image-generation.service.js';
 
@@ -41,10 +40,11 @@ export async function generateResumePhoto(candidate: CandidateResume): Promise<R
   const prompt = createPhotoPrompt(candidate);
   const image = await generateImage({
     prompt,
-    model: env.imageGenerationModel,
     mimeType: 'image/jpeg',
     aspectRatio: '4:5',
-    imageSize: '1024px',
+    imageSize: '768x960',
+    quality: 'low',
+    outputCompression: 70,
   });
 
   return {

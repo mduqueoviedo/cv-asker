@@ -24,7 +24,7 @@ CV Asker is a local-first full-stack recruitment prototype. The project combines
 
 - Modular route/controller/service structure under `src/`.
 - OpenRouter integration through native `fetch`.
-- Image generation through native `fetch`, currently backed by Gemini.
+- Image generation through native `fetch`, backed by OpenRouter.
 - Shared AI HTTP retry layer with timeout and exponential backoff.
 - Ordered OpenRouter fallback for lightweight resume-text enrichment.
 - Resume generation service now builds the CV structure locally with `faker` and enriches only summary/highlights with the LLM.
@@ -71,7 +71,7 @@ The backend starts on `http://localhost:3000` by default.
 - `src/services/resumes/resume-photo.service.ts`: implemented
 - `src/services/ai/ai-http.service.ts`: implemented
 - `src/services/ai/image-generation.service.ts`: implemented
-- `src/services/ai/gemini-image.service.ts`: implemented
+- `src/services/ai/openrouter-image.service.ts`: implemented
 - RAG ingestion services: `WIP`
 - Retrieval services: `WIP`
 - Chat orchestration: `WIP`
@@ -85,17 +85,17 @@ The backend starts on `http://localhost:3000` by default.
 - The generator enforces the project requirement range of 25-30 resumes per generation run.
 - Personal seed data and the full resume structure come from `faker` plus small local catalogs.
 - OpenRouter is used only to enrich the professional summary and highlights, keeping token usage and failure surface low.
-- The CV flow uses a generic image-generation layer to create a realistic synthetic profile photo for every candidate.
+- The CV flow uses a generic image-generation layer to create a realistic synthetic profile photo for every candidate via OpenRouter image generation.
 - Supported document languages are `en` and `es-ES`.
 - Resume templates are now modeled explicitly so the renderer can move to HTML-to-PDF later without changing the dataset shape.
 - HTML should be treated as a transient render step and cleaned up once its PDF counterpart has been produced.
 - The current default template is `aurora-split`.
 - Output is written under `storage/generated-resumes/`.
 - JSON metadata is stored only as a derived artifact of the fresh resumes, to support later ingestion steps.
-- Generated photo binaries are stored under `storage/generated-resumes/photos/`.
+- Generated photos are used only during rendering and are not persisted as separate files.
 - Each generated artifact records the language and the model used for text enrichment, or `local/base-profile` when the local copy is kept.
 - When multiple models are configured, the generator tries them in order and keeps valid local copy if all enrichment attempts fail.
-- The default photo model is `gemini-3.1-flash-lite-image`.
+- The default photo model is `google/gemini-2.5-flash-image`.
 
 Example request body:
 
@@ -142,12 +142,9 @@ pnpm generate:resumes:append
 
 ## Environment Variables
 
-Copy `.env.example` into `.env`. Image-generation credentials are required because each CV now includes a generated profile photo. `OPENROUTER_API_KEY` is still optional and is used only for LLM enrichment.
+Copy `.env.example` into `.env`. `OPENROUTER_API_KEY` is required because CV generation now uses OpenRouter both for optional text enrichment and for image generation.
 
 - `PORT`: Local backend port.
-- `IMAGE_GENERATION_PROVIDER`: Image-generation backend selector. Currently supports `gemini`.
-- `IMAGE_GENERATION_MODEL`: Model used by the active image-generation backend. Defaults to `gemini-3.1-flash-lite-image`.
-- `GEMINI_API_KEY`: API key used by the current Gemini-backed image-generation implementation.
 - `OPENROUTER_API_KEY`: API key used for optional resume-text enrichment.
 - `OPENROUTER_MODELS`: Optional comma-separated OpenRouter model list used in ordered fallback mode.
 - `OPENROUTER_MODEL`: Optional legacy single-model override. Ignored when `OPENROUTER_MODELS` is set.

@@ -43,8 +43,6 @@ export interface ResumePhotoAsset {
 export interface StoredResumePhotoAsset {
   provider: string;
   mimeType: string;
-  fileName: string;
-  filePath: string;
   prompt: string;
   model: string;
 }
@@ -86,8 +84,6 @@ export interface GeneratedResumeArtifact {
   template: ResumeTemplateId;
   pdfFileName: string;
   pdfFilePath: string;
-  photoFileName: string;
-  photoFilePath: string;
   metadataFileName: string;
   metadataFilePath: string;
 }
@@ -132,7 +128,6 @@ export interface ResumeDatasetManifest {
   lastImageGeneration: ResumeImageGenerationMetadata;
   outputDirectory: string;
   pdfDirectory: string;
-  photoDirectory: string;
   metadataDirectory: string;
   count: number;
   resumes: GeneratedResumeArtifact[];

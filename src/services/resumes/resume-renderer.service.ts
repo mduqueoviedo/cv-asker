@@ -22,6 +22,8 @@ const COMMON_BROWSER_PATHS = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ];
 const stylesCache = new Map<ResumeTemplateId, string>();
+const PDF_AVATAR_MAX_WIDTH_PX = 420;
+const PDF_AVATAR_JPEG_QUALITY = 0.62;
 
 async function loadTemplateStyles(template: ResumeTemplateId): Promise<string> {
   const cached = stylesCache.get(template);
@@ -140,6 +142,58 @@ export async function createResumePdfRenderer(): Promise<ResumePdfRenderer> {
           waitUntil: 'load',
         });
         await page.waitForNetworkIdle();
+        await page.evaluate(
+          async ({
+            maxWidth,
+            quality,
+          }: {
+            maxWidth: number;
+            quality: number;
+          }) => {
+            const avatarImages = Array.from(document.querySelectorAll<HTMLImageElement>('img.avatar'));
+
+            await Promise.all(
+              avatarImages.map(async (image) => {
+                if (!image.complete) {
+                  await new Promise<void>((resolve, reject) => {
+                    image.addEventListener('load', () => resolve(), { once: true });
+                    image.addEventListener('error', () => reject(new Error('Avatar image failed to load.')), {
+                      once: true,
+                    });
+                  });
+                }
+
+                const sourceWidth = image.naturalWidth || image.width;
+                const sourceHeight = image.naturalHeight || image.height;
+
+                if (!sourceWidth || !sourceHeight) {
+                  return;
+                }
+
+                image.style.borderRadius = '0';
+                image.style.boxShadow = 'none';
+
+                const targetWidth = Math.min(sourceWidth, maxWidth);
+                const targetHeight = Math.round((sourceHeight / sourceWidth) * targetWidth);
+                const canvas = document.createElement('canvas');
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+                const context = canvas.getContext('2d');
+
+                if (!context) {
+                  return;
+                }
+
+                context.drawImage(image, 0, 0, targetWidth, targetHeight);
+                image.src = canvas.toDataURL('image/jpeg', quality);
+              })
+            );
+          },
+          {
+            maxWidth: PDF_AVATAR_MAX_WIDTH_PX,
+            quality: PDF_AVATAR_JPEG_QUALITY,
+          }
+        );
         await page.emulateMediaType('screen');
 
         const pdf = await page.pdf({
