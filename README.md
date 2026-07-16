@@ -4,6 +4,11 @@ CV Asker is a local-first prototype for screening CVs with RAG.
 
 It generates fake resumes as PDFs, parses those PDFs directly, builds a local searchable index, and lets you ask natural-language questions with grounded sources.
 
+The repo is now organized as two app surfaces:
+
+- `apps/api`: Express API plus resume generation and ingestion pipeline
+- `apps/chat`: Vite + Vanilla TypeScript chat UI served by the API at `/chat`
+
 ## What It Does
 
 The current flow is:
@@ -13,6 +18,12 @@ The current flow is:
 3. Normalize and split the text into sections and chunks.
 4. Build a local RAG index.
 5. Answer questions against that dataset from `/chat` or the API.
+
+Inside the API, the code is grouped by domain:
+
+- `cv-generation`: fake CV dataset creation
+- `cv-ingestion`: PDF extraction, normalization, chunking, indexing, retrieval
+- `chat`: question answering and chat-facing endpoints
 
 There are two practical modes:
 
@@ -69,6 +80,27 @@ pnpm dev
 If PDFs are detected in that folder, the RAG layer will use them automatically.
 If not, it falls back to the generated dataset.
 
+## Repository Shape
+
+```text
+apps/
+  api/
+    scripts/
+    src/
+      app/
+      modules/
+        chat/
+        cv-generation/
+        cv-ingestion/
+      shared/
+  chat/
+    src/
+      api/
+      components/
+      i18n/
+      styles/
+```
+
 ## Main Commands
 
 ```bash
@@ -82,23 +114,65 @@ pnpm rag:ask -- "Which candidates speak English and have backend experience?"
 Useful extra checks:
 
 ```bash
-pnpm extract:text
-pnpm extract:text:file -- /path/to/any-cv.pdf
+pnpm test:smoke
+pnpm smoke:extract
+pnpm smoke:extract:file -- /path/to/any-cv.pdf
 ```
+
+## Smoke Tests
+
+The repo includes a very small smoke-testing layer under:
+
+- `apps/api/src/testing/smoke`
+
+These are not unit tests. They are operational checks for the main flows we care about while iterating on the product:
+
+- extraction
+- index building
+- local HTTP integration
+- optional grounded asking
+- optional dataset generation
+
+Main commands:
+
+```bash
+pnpm test:smoke
+pnpm test:smoke:http
+pnpm test:smoke:ai
+pnpm test:smoke:full
+```
+
+What each one does:
+
+- `pnpm test:smoke`: safe baseline suite, focused on local checks
+- `pnpm test:smoke:http`: baseline suite plus local HTTP integration
+- `pnpm test:smoke:ai`: baseline suite plus a chat-answer smoke
+- `pnpm test:smoke:full`: includes generation before the rest of the suite
+
+Notes:
+
+- Dataset-dependent smokes are skipped automatically if no generated or imported dataset is available.
+- The HTTP smoke opens a local port, so it is separated from the default baseline suite.
+- The AI-oriented smokes may call the configured LLM provider if credentials are present.
+- Legacy commands like `pnpm rag:index` and `pnpm rag:ask` still work as aliases.
 
 ## Main Endpoints
 
-- `GET /chat`: lightweight local chat UI
-- `GET /api/rag/status`: dataset and index status
-- `POST /api/rag/index`: rebuild the local RAG index
-- `POST /api/rag/ask`: ask a grounded question
+- `GET /chat`: Vite-built chat UI served by Express
+- `GET /api/ingestion/status`: dataset and index status
+- `POST /api/ingestion/index`: rebuild the local RAG index
+- `POST /api/chat/ask`: ask a grounded question
 - `POST /api/resumes/generate`: generate a new PDF dataset
+
+Compatibility note:
+
+- The previous `/api/rag/*` endpoints are still available as aliases.
 
 ## Configuration
 
 The main knobs are centralized in:
 
-- `src/config/resume-generation.ts`
+- `apps/api/src/shared/config/resume-generation.ts`
 
 This is where you can quickly change:
 
