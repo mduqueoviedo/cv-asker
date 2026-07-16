@@ -19,7 +19,6 @@ import type {
   ResumeDocumentLanguage,
   ResumeDocumentLanguageSelection,
   ResumeGenerationMode,
-  StoredCandidateResume,
   ResumeTemplateId,
   ResumeTemplateSelection,
   ResumeTextGenerationMetadata,
@@ -35,9 +34,9 @@ import { createResumePdfRenderer } from './resume-renderer.service.js';
 
 const OUTPUT_DIRECTORY = path.join(process.cwd(), 'storage', 'generated-resumes');
 const PDF_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'pdfs');
-const METADATA_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'metadata');
 const MANIFEST_PATH = path.join(OUTPUT_DIRECTORY, 'manifest.json');
 const LEGACY_HTML_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'html');
+const LEGACY_METADATA_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'metadata');
 const resumeSeedDataProvider = createFakerResumeSeedDataProvider();
 
 interface CandidateResumeDraft
@@ -158,8 +157,8 @@ async function ensureOutputDirectories(mode: ResumeGenerationMode) {
   }
 
   await rm(LEGACY_HTML_DIRECTORY, { recursive: true, force: true });
+  await rm(LEGACY_METADATA_DIRECTORY, { recursive: true, force: true });
   await mkdir(PDF_DIRECTORY, { recursive: true });
-  await mkdir(METADATA_DIRECTORY, { recursive: true });
 }
 
 function createTotalExperienceYears(index: number, age: number): number {
@@ -295,22 +294,9 @@ async function writeCandidateArtifacts(
   pdfBuffer: Buffer
 ): Promise<GeneratedResumeArtifact> {
   const pdfFileName = `${candidate.id}.pdf`;
-  const metadataFileName = `${candidate.id}.json`;
   const pdfFilePath = path.join(PDF_DIRECTORY, pdfFileName);
-  const metadataFilePath = path.join(METADATA_DIRECTORY, metadataFileName);
-  const metadata: StoredCandidateResume = {
-    ...candidate,
-    template,
-    photo: {
-      provider: candidate.photo.provider,
-      mimeType: candidate.photo.mimeType,
-      prompt: candidate.photo.prompt,
-      model: candidate.photo.model,
-    },
-  };
 
   await writeFile(pdfFilePath, pdfBuffer);
-  await writeFile(metadataFilePath, JSON.stringify(metadata, null, 2));
 
   return {
     id: candidate.id,
@@ -321,8 +307,6 @@ async function writeCandidateArtifacts(
     template,
     pdfFileName,
     pdfFilePath,
-    metadataFileName,
-    metadataFilePath,
   };
 }
 
@@ -460,7 +444,7 @@ export async function generateResumeDataset(
       const profile = profiles.get(candidate.id);
 
       if (!profile) {
-        throw new Error(`No profile metadata was retained for candidate "${candidate.id}".`);
+        throw new Error(`No generated profile was retained for candidate "${candidate.id}".`);
       }
 
       const artifact = await writeCandidateArtifacts(
@@ -497,7 +481,6 @@ export async function generateResumeDataset(
     lastImageGeneration: createImageGenerationMetadata(candidatesWithPhotos.length),
     outputDirectory: OUTPUT_DIRECTORY,
     pdfDirectory: PDF_DIRECTORY,
-    metadataDirectory: METADATA_DIRECTORY,
     count: resumes.length,
     resumes,
   };
@@ -512,17 +495,9 @@ export async function generateResumeDataset(
 
 export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest | null> {
   try {
-    const [manifestStats, pdfDirectoryStats, metadataDirectoryStats] = await Promise.all([
-      stat(MANIFEST_PATH),
-      stat(PDF_DIRECTORY),
-      stat(METADATA_DIRECTORY),
-    ]);
+    const [manifestStats, pdfDirectoryStats] = await Promise.all([stat(MANIFEST_PATH), stat(PDF_DIRECTORY)]);
 
-    if (
-      !manifestStats.isFile() ||
-      !pdfDirectoryStats.isDirectory() ||
-      !metadataDirectoryStats.isDirectory()
-    ) {
+    if (!manifestStats.isFile() || !pdfDirectoryStats.isDirectory()) {
       return null;
     }
 
@@ -539,20 +514,41 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
         ? manifest.lastTextGeneration.usedModels
         : configuredModels;
 
+    const normalizedResumes = (manifest.resumes ?? []).map((resume) => {
+      const { metadataFileName: _metadataFileName, metadataFilePath: _metadataFilePath, ...normalizedResume } =
+        resume as Partial<GeneratedResumeArtifact> & {
+          metadataFileName?: string;
+          metadataFilePath?: string;
+        };
+
+      return {
+        ...normalizedResume,
+        template: normalizedResume.template ?? resumeGenerationConfig.defaults.template,
+      } as GeneratedResumeArtifact;
+    });
+
+    const {
+      metadataDirectory: _metadataDirectory,
+      resumes: _legacyResumes,
+      ...manifestWithoutLegacyMetadata
+    } = manifest as Partial<ResumeDatasetManifest> & {
+      metadataDirectory?: string;
+    };
+
     return {
-      ...manifest,
+      ...manifestWithoutLegacyMetadata,
       lastTemplate: manifest.lastTemplate ?? resumeGenerationConfig.defaults.template,
       lastBatchLanguage: manifest.lastBatchLanguage ?? resumeGenerationConfig.defaults.language,
       lastBatchLanguages:
         manifest.lastBatchLanguages && manifest.lastBatchLanguages.length > 0
           ? manifest.lastBatchLanguages
           : collectUsedValues(
-              (manifest.resumes ?? []).map((resume) => resume.documentLanguage)
+              normalizedResumes.map((resume) => resume.documentLanguage)
             ),
       lastBatchTemplates:
         manifest.lastBatchTemplates && manifest.lastBatchTemplates.length > 0
           ? manifest.lastBatchTemplates
-          : collectUsedValues((manifest.resumes ?? []).map((resume) => resume.template)),
+          : collectUsedValues(normalizedResumes.map((resume) => resume.template)),
       lastTextGeneration: manifest.lastTextGeneration
         ? {
             ...manifest.lastTextGeneration,
@@ -561,7 +557,7 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
             enrichedProfileCount: manifest.lastTextGeneration.enrichedProfileCount ?? 0,
             localProfileCount:
               manifest.lastTextGeneration.localProfileCount ??
-              Math.max(0, (manifest.resumes?.length ?? 0) - (manifest.lastTextGeneration.enrichedProfileCount ?? 0)),
+              Math.max(0, normalizedResumes.length - (manifest.lastTextGeneration.enrichedProfileCount ?? 0)),
           }
         : createTextGenerationMetadata(
             getDefaultResumeLlmModels(),
@@ -569,10 +565,8 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
             []
           ),
       lastImageGeneration: manifest.lastImageGeneration ?? createImageGenerationMetadata(0),
-      resumes: (manifest.resumes ?? []).map((resume) => ({
-        ...resume,
-        template: resume.template ?? resumeGenerationConfig.defaults.template,
-      })),
+      count: manifest.count ?? normalizedResumes.length,
+      resumes: normalizedResumes,
     } as ResumeDatasetManifest;
   } catch {
     return null;
@@ -586,14 +580,10 @@ export async function getResumeDatasetStorageSnapshot() {
     return null;
   }
 
-  const [pdfFiles, metadataFiles] = await Promise.all([
-    readdir(PDF_DIRECTORY),
-    readdir(METADATA_DIRECTORY),
-  ]);
+  const pdfFiles = await readdir(PDF_DIRECTORY);
 
   return {
     manifest,
     pdfCount: pdfFiles.length,
-    metadataCount: metadataFiles.length,
   };
 }
