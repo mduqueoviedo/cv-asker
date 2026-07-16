@@ -76,7 +76,7 @@
 .language-switcher select {
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--panel-strong);
+  background: rgba(255, 255, 255, 0.98);
   color: var(--ink);
   font-weight: 700;
   padding: 8px 12px;
@@ -93,19 +93,32 @@
   border-radius: 22px;
 }
 
+.composer {
+  display: flex;
+  flex-direction: column;
+}
+
 .composer-heading {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 textarea {
+  display: block;
   width: 100%;
-  min-height: 132px;
+  min-height: 96px;
   resize: vertical;
   border: 0;
   outline: 0;
   background: transparent;
   color: var(--ink);
   line-height: 1.55;
+  padding: 0;
+  margin: 0 0 12px;
+}
+
+.actions {
+  margin-top: auto;
+  align-items: flex-end;
 }
 
 button {
@@ -114,11 +127,12 @@ button {
   border-radius: 999px;
   padding: 12px 18px;
   font-weight: 700;
-  transition: transform 120ms ease, opacity 120ms ease;
+  transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
 }
 
 button:hover:not(:disabled) {
   transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.18);
 }
 
 button:disabled {
@@ -132,7 +146,7 @@ button:disabled {
 }
 
 .secondary {
-  background: white;
+  background: rgba(255, 255, 255, 0.98);
   color: var(--ink);
   border: 1px solid var(--line);
 }
@@ -144,10 +158,12 @@ button:disabled {
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
+  border: 1px solid rgba(37, 99, 235, 0.12);
 }
 
 .answer {
   white-space: pre-wrap;
+  padding-top: 4px;
 }
 
 .matches,

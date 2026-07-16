@@ -10,6 +10,21 @@ import { cosineSimilarity, createHashedEmbedding, normalizeSearchText, tokenizeS
 import { ensureResumeRagIndex } from './cv-ingestion-index.service.js';
 import { analyzeResumeRagQuestion } from './search-query-analyzer.service.js';
 
+const LANGUAGE_FILTER_ALIASES = {
+  english: ['english', 'ingles', 'inglés'],
+  spanish: ['spanish', 'espanol', 'español'],
+  french: ['french', 'frances', 'francés'],
+  german: ['german', 'aleman', 'alemán'],
+  dutch: ['dutch', 'neerlandes', 'neerlandés', 'holandes', 'holandés'],
+  italian: ['italian', 'italiano'],
+  portuguese: ['portuguese', 'portugues', 'portugués'],
+  catalan: ['catalan', 'català', 'catalán'],
+  galician: ['galician', 'gallego'],
+  basque: ['basque', 'euskera', 'vasco'],
+  japanese: ['japanese', 'japones', 'japonés'],
+  chinese: ['chinese', 'chino', 'china', 'mandarin', 'mandarín'],
+} satisfies Record<string, string[]>;
+
 interface ScoredChunk {
   chunk: ResumeRagIndexedChunk;
   profile: ResumeRagCandidateProfile;
@@ -58,9 +73,15 @@ function candidateMatchesFilters(
 
   const candidateLanguageCorpus = normalizeSearchText(profile.languages.join(' '));
 
-  return analysis.filters.languages.every((language) =>
-    candidateLanguageCorpus.includes(normalizeSearchText(language))
-  );
+  return analysis.filters.languages.every((language) => {
+    const aliases = LANGUAGE_FILTER_ALIASES[language as keyof typeof LANGUAGE_FILTER_ALIASES] ?? [
+      language,
+    ];
+
+    return aliases.some((alias) =>
+      candidateLanguageCorpus.includes(normalizeSearchText(alias))
+    );
+  });
 }
 
 function computeLexicalOverlap(queryTerms: string[], text: string): number {

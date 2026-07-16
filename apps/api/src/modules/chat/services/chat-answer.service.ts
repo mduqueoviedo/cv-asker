@@ -3,9 +3,14 @@ import {
   getDefaultRagAnswerModel,
   resumeGenerationConfig,
 } from '../../../shared/config/resume-generation.js';
-import type { ResumeRagAnswerResult, ResumeRagCandidateMatch } from '../../cv-ingestion/types/rag.js';
+import type {
+  ResumeRagAnswerResult,
+  ResumeRagCandidateMatch,
+  ResumeRagQueryAnalysis,
+} from '../../cv-ingestion/types/rag.js';
 import { generateTextCompletion } from '../../../shared/ai/ai.service.js';
 import { searchResumeRag } from '../../cv-ingestion/services/cv-search.service.js';
+import { normalizeSearchText, tokenizeSearchText } from '../../cv-ingestion/services/local-vectorizer.service.js';
 
 type ChatLanguage = 'en' | 'es';
 
@@ -51,6 +56,33 @@ const SPANISH_MARKERS = [
   ' cuales ',
   ' cuáles ',
 ];
+
+const SPANISH_SIGNAL_TOKENS = new Set([
+  'quien',
+  'quienes',
+  'que',
+  'cual',
+  'cuales',
+  'como',
+  'donde',
+  'habla',
+  'hablan',
+  'idioma',
+  'idiomas',
+  'candidato',
+  'candidatos',
+  'perfil',
+  'perfiles',
+  'experiencia',
+  'anos',
+  'ano',
+  'tiene',
+  'tienen',
+  'busco',
+  'quiero',
+  'dame',
+  'encuentra',
+]);
 
 const LOCALIZED_COPY: Record<ChatLanguage, LocalizedCopy> = {
   en: {
@@ -105,12 +137,15 @@ function detectQuestionLanguage(question: string): ChatLanguage {
     return 'es';
   }
 
-  const normalizedQuestion = ` ${question.toLowerCase()} `;
+  const normalizedQuestion = ` ${normalizeSearchText(question)} `;
   const spanishMatches = SPANISH_MARKERS.reduce((count, marker) => {
     return count + (normalizedQuestion.includes(marker) ? 1 : 0);
   }, 0);
+  const spanishTokenMatches = tokenizeSearchText(question).reduce((count, token) => {
+    return count + (SPANISH_SIGNAL_TOKENS.has(token) ? 1 : 0);
+  }, 0);
 
-  return spanishMatches >= 2 ? 'es' : 'en';
+  return spanishMatches >= 2 || spanishTokenMatches >= 2 ? 'es' : 'en';
 }
 
 function getLocalizedCopy(language: ChatLanguage): LocalizedCopy {
@@ -133,17 +168,97 @@ function buildCandidateContext(match: ResumeRagCandidateMatch, language: ChatLan
   ].join('\n');
 }
 
-function createFallbackAnswer(
+function localizeLanguageName(languageName: string, language: ChatLanguage): string {
+  const normalized = normalizeSearchText(languageName);
+
+  if (language === 'es') {
+    switch (normalized) {
+      case 'english':
+        return 'inglés';
+      case 'spanish':
+        return 'español';
+      case 'french':
+        return 'francés';
+      case 'german':
+        return 'alemán';
+      case 'dutch':
+        return 'neerlandés';
+      case 'italian':
+        return 'italiano';
+      case 'portuguese':
+        return 'portugués';
+      case 'catalan':
+        return 'catalán';
+      case 'galician':
+        return 'gallego';
+      case 'basque':
+        return 'euskera';
+      case 'japanese':
+        return 'japonés';
+      case 'chinese':
+        return 'chino';
+      default:
+        return languageName;
+    }
+  }
+
+  return languageName;
+}
+
+function formatLanguageList(languages: string[], language: ChatLanguage): string {
+  const localizedLanguages = languages.map((item) => localizeLanguageName(item, language));
+
+  if (languages.length === 0) {
+    return language === 'es' ? 'ese idioma' : 'that language';
+  }
+
+  if (localizedLanguages.length === 1) {
+    return localizedLanguages[0];
+  }
+
+  if (localizedLanguages.length === 2) {
+    return language === 'es'
+      ? `${localizedLanguages[0]} y ${localizedLanguages[1]}`
+      : `${localizedLanguages[0]} and ${localizedLanguages[1]}`;
+  }
+
+  const leadingItems = localizedLanguages.slice(0, -1).join(', ');
+  const lastItem = localizedLanguages.at(-1);
+
+  return language === 'es'
+    ? `${leadingItems} y ${lastItem}`
+    : `${leadingItems}, and ${lastItem}`;
+}
+
+function createNaturalNoMatchesAnswer(
   question: string,
-  matches: ResumeRagCandidateMatch[],
+  analysis: ResumeRagQueryAnalysis,
   language: ChatLanguage
 ): string {
   const copy = getLocalizedCopy(language);
 
-  if (matches.length === 0) {
-    return copy.noMatches(question);
+  if (analysis.filters.languages.length > 0) {
+    const languageList = formatLanguageList(analysis.filters.languages, language);
+
+    return language === 'es'
+      ? `No he encontrado ningún candidato que indique ${languageList} entre sus idiomas en los CVs disponibles.`
+      : `I could not find any candidates who list ${languageList} among their languages in the available resumes.`;
   }
 
+  return copy.noMatches(question);
+}
+
+function createFallbackAnswer(
+  question: string,
+  matches: ResumeRagCandidateMatch[],
+  analysis: ResumeRagQueryAnalysis,
+  language: ChatLanguage
+): string {
+  if (matches.length === 0) {
+    return createNaturalNoMatchesAnswer(question, analysis, language);
+  }
+
+  const copy = getLocalizedCopy(language);
   const lines = matches.slice(0, 3).map((match, index) => {
     const topCitation = match.citations[0];
     const citationLabel = topCitation ? `[${topCitation.candidateId}:${topCitation.chunkId}]` : '';
@@ -210,7 +325,7 @@ export async function answerResumeRagQuestion(
       builtAt: result.index.builtAt,
       question,
       responseLanguage,
-      answer: createFallbackAnswer(question, result.matches, responseLanguage),
+      answer: createFallbackAnswer(question, result.matches, result.analysis, responseLanguage),
       analysis: result.analysis,
       citations: [],
       matches: [],
@@ -225,7 +340,7 @@ export async function answerResumeRagQuestion(
       builtAt: result.index.builtAt,
       question,
       responseLanguage,
-      answer: createFallbackAnswer(question, result.matches, responseLanguage),
+      answer: createFallbackAnswer(question, result.matches, result.analysis, responseLanguage),
       analysis: result.analysis,
       citations: result.citations,
       matches: result.matches,
@@ -261,7 +376,7 @@ export async function answerResumeRagQuestion(
       builtAt: result.index.builtAt,
       question,
       responseLanguage,
-      answer: createFallbackAnswer(question, result.matches, responseLanguage),
+      answer: createFallbackAnswer(question, result.matches, result.analysis, responseLanguage),
       analysis: result.analysis,
       citations: result.citations,
       matches: result.matches,

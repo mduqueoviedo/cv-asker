@@ -51,7 +51,7 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     unavailableStatus: 'Unavailable',
     statusHint: 'Place PDFs in `storage/imported-resumes/pdfs` to use your own CVs.',
     refreshButton: 'Refresh CVs',
-    composerPill: 'Ask the dataset',
+    composerPill: 'Ask about the CVs',
     placeholder:
       'Example: Which candidates speak German and have more than 4 years of experience with backend systems?',
     composerHint: 'Press Enter to send. Use Shift+Enter for a new line.',
@@ -85,7 +85,7 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     unavailableStatus: 'Sin datos',
     statusHint: 'Coloca PDFs en `storage/imported-resumes/pdfs` para usar tu propio conjunto de CVs.',
     refreshButton: 'Reindexar CVs',
-    composerPill: 'Pregunta al dataset',
+    composerPill: 'Pregunta sobre los CVs',
     placeholder:
       'Ejemplo: ¿Qué candidatos hablan alemán y tienen más de 4 años de experiencia en sistemas backend?',
     composerHint: 'Pulsa Enter para enviar. Usa Shift+Enter para una nueva línea.',

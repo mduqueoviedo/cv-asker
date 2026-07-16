@@ -1,32 +1,20 @@
 import type { ResumeRagAnswerIntent, ResumeRagQueryAnalysis } from '../types/rag.js';
 import { normalizeSearchText, tokenizeSearchText } from './local-vectorizer.service.js';
 
-const SUPPORTED_LANGUAGE_NAMES = [
-  'english',
-  'spanish',
-  'french',
-  'german',
-  'dutch',
-  'italian',
-  'portuguese',
-  'catalan',
-  'galician',
-  'basque',
-  'japanese',
-  'espanol',
-  'español',
-  'ingles',
-  'inglés',
-  'frances',
-  'francés',
-  'aleman',
-  'alemán',
-  'italiano',
-  'portugues',
-  'portugués',
-  'japones',
-  'japonés',
-];
+const LANGUAGE_ALIASES = {
+  english: ['english', 'ingles', 'inglés'],
+  spanish: ['spanish', 'espanol', 'español'],
+  french: ['french', 'frances', 'francés'],
+  german: ['german', 'aleman', 'alemán'],
+  dutch: ['dutch', 'neerlandes', 'neerlandés', 'holandes', 'holandés'],
+  italian: ['italian', 'italiano'],
+  portuguese: ['portuguese', 'portugues', 'portugués'],
+  catalan: ['catalan', 'català', 'catalán', 'catalan'],
+  galician: ['galician', 'gallego'],
+  basque: ['basque', 'euskera', 'vasco'],
+  japanese: ['japanese', 'japones', 'japonés'],
+  chinese: ['chinese', 'chino', 'china', 'mandarin', 'mandarín'],
+} satisfies Record<string, string[]>;
 
 function detectIntent(question: string): ResumeRagAnswerIntent {
   if (/\b(how many|cu[aá]nt[oa]s?|count|n[uú]mero de)\b/i.test(question)) {
@@ -56,9 +44,11 @@ function detectTopK(question: string): number {
 }
 
 function detectLanguages(normalizedQuestion: string): string[] {
-  return SUPPORTED_LANGUAGE_NAMES.filter((language) =>
-    normalizedQuestion.includes(normalizeSearchText(language))
-  );
+  return Object.entries(LANGUAGE_ALIASES)
+    .filter(([, aliases]) =>
+      aliases.some((alias) => normalizedQuestion.includes(normalizeSearchText(alias)))
+    )
+    .map(([canonicalLanguage]) => canonicalLanguage);
 }
 
 function detectMinimumExperienceYears(question: string): number | null {
