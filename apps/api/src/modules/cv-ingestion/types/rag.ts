@@ -194,6 +194,19 @@ export interface ResumeRagIndex {
 }
 
 export type ResumeRagAnswerIntent = 'list' | 'count' | 'summary';
+export type ResumeRagQueryKind =
+  | 'generic'
+  | 'language_lookup'
+  | 'organization_lookup'
+  | 'skill_lookup'
+  | 'keyword_lookup';
+export type ResumeRagConceptKind = 'technology' | 'domain' | 'role';
+
+export interface ResumeRagQueryConcepts {
+  technologies: string[];
+  domains: string[];
+  roles: string[];
+}
 
 export interface ResumeRagQueryFilters {
   languages: string[];
@@ -204,8 +217,10 @@ export interface ResumeRagQueryAnalysis {
   originalQuestion: string;
   normalizedQuestion: string;
   intent: ResumeRagAnswerIntent;
+  queryKind: ResumeRagQueryKind;
   topK: number;
   searchTerms: string[];
+  concepts: ResumeRagQueryConcepts;
   filters: ResumeRagQueryFilters;
 }
 
@@ -241,6 +256,7 @@ export interface ResumeRagAnswerResult {
   question: string;
   responseLanguage: 'en' | 'es';
   answer: string;
+  showMatches: boolean;
   analysis: ResumeRagQueryAnalysis;
   citations: ResumeRagCitation[];
   matches: ResumeRagCandidateMatch[];

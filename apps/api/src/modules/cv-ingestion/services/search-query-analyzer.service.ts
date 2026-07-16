@@ -1,5 +1,10 @@
-import type { ResumeRagAnswerIntent, ResumeRagQueryAnalysis } from '../types/rag.js';
+import type {
+  ResumeRagAnswerIntent,
+  ResumeRagQueryAnalysis,
+  ResumeRagQueryKind,
+} from '../types/rag.js';
 import { normalizeSearchText, tokenizeSearchText } from './local-vectorizer.service.js';
+import { extractResumeRagQueryConcepts } from './resume-query-concepts.service.js';
 
 const LANGUAGE_ALIASES = {
   english: ['english', 'ingles', 'inglés'],
@@ -62,17 +67,64 @@ function detectMinimumExperienceYears(question: string): number | null {
   return null;
 }
 
+function detectQueryKind(
+  question: string,
+  normalizedQuestion: string,
+  searchTerms: string[],
+  detectedLanguages: string[]
+): ResumeRagQueryKind {
+  if (
+    detectedLanguages.length > 0 &&
+    /\b(speak|speaks|spoken|language|languages|habla|hablan|idioma|idiomas)\b/i.test(question)
+  ) {
+    return 'language_lookup';
+  }
+
+  if (
+    /\b(worked at|worked for|company|companies|employer|employers|organization|organisation|trabajado en|trabajo en|empresa|empresas|empleador|empleadores|pasado por)\b/i.test(
+      question
+    )
+  ) {
+    return 'organization_lookup';
+  }
+
+  if (
+    /\b(skill|skills|technology|technologies|stack|tool|tools|framework|frameworks|experience with|experience in|worked on|works with|uses|use|knows|knowing|herramienta|herramientas|habilidad|habilidades|tecnologia|tecnologias|frameworks?|experiencia con|experiencia en|trabajado con|trabaja con|trabajan con|usa|utiliza|maneja|conoce)\b/i.test(
+      question
+    )
+  ) {
+    return 'skill_lookup';
+  }
+
+  if (
+    searchTerms.length > 0 &&
+    (searchTerms.length <= 3 ||
+      /\b(any|someone|somebody|who|which|find|show|hay|alguien|quien|quién|tenemos|muestra|busca)\b/i.test(
+        normalizedQuestion
+      ))
+  ) {
+    return 'keyword_lookup';
+  }
+
+  return 'generic';
+}
+
 export function analyzeResumeRagQuestion(question: string): ResumeRagQueryAnalysis {
   const normalizedQuestion = normalizeSearchText(question);
+  const searchTerms = tokenizeSearchText(question).slice(0, 24);
+  const detectedLanguages = detectLanguages(normalizedQuestion);
+  const concepts = extractResumeRagQueryConcepts(question);
 
   return {
     originalQuestion: question,
     normalizedQuestion,
     intent: detectIntent(question),
+    queryKind: detectQueryKind(question, normalizedQuestion, searchTerms, detectedLanguages),
     topK: detectTopK(question),
-    searchTerms: tokenizeSearchText(question).slice(0, 24),
+    searchTerms,
+    concepts,
     filters: {
-      languages: detectLanguages(normalizedQuestion),
+      languages: detectedLanguages,
       minExperienceYears: detectMinimumExperienceYears(question),
     },
   };

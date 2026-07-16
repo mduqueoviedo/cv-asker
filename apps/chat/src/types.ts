@@ -26,6 +26,7 @@ export interface CandidateMatch {
 
 export interface ChatAnswerResult {
   answer: string;
+  showMatches: boolean;
   matches: CandidateMatch[];
   citations: Citation[];
 }

@@ -90,6 +90,11 @@ export async function runSmokeSuite(options: RunSmokeSuiteOptions) {
         label: 'build-rag-index',
         command: 'node',
         args: ['--import', 'tsx', smokeScript('build-rag-index.smoke.ts')],
+      },
+      {
+        label: 'golden-rag-queries',
+        command: 'node',
+        args: ['--import', 'tsx', smokeScript('golden-rag-queries.smoke.ts')],
       }
     );
   } else {

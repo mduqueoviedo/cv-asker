@@ -127,8 +127,12 @@ export function createChatApp() {
     }
 
     if (lastResult) {
-      dom.resultTitle.textContent = copy.answerReady;
-      renderMatches(dom.matchesNode, lastResult.matches ?? [], currentLanguage);
+      dom.resultTitle.textContent = '';
+      renderMatches(
+        dom.matchesNode,
+        lastResult.showMatches ? (lastResult.matches ?? []) : [],
+        currentLanguage
+      );
     } else {
       dom.resultTitle.textContent = copy.idleTitle;
     }
@@ -162,9 +166,13 @@ export function createChatApp() {
 
     try {
       lastResult = await askChatQuestion(question, forceRebuild);
-      dom.resultTitle.textContent = copy.answerReady;
+      dom.resultTitle.textContent = '';
       dom.answerOutput.textContent = lastResult.answer;
-      renderMatches(dom.matchesNode, lastResult.matches ?? [], currentLanguage);
+      renderMatches(
+        dom.matchesNode,
+        lastResult.showMatches ? (lastResult.matches ?? []) : [],
+        currentLanguage
+      );
       await loadStatus();
     } catch (error) {
       dom.resultTitle.textContent = copy.error;
