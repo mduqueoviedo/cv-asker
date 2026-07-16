@@ -6,7 +6,6 @@ This document describes the implemented end-to-end flow of CV Asker and the curr
 
 - The PDF is the source of truth for RAG ingestion.
 - Derived CV metadata is not used as an ingestion input.
-- The original requirements PDF is stored locally at `.local/requirements/ai-full-stack-developer-business-case.pdf` and excluded from git.
 
 ## System Diagram
 
