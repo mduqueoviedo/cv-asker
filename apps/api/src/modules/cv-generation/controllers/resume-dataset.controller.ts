@@ -55,7 +55,7 @@ export const getResumeDatasetStatusController: RequestHandler = async (
     if (!snapshot) {
       response.status(404).json({
         success: false,
-        error: 'No generated resume dataset was found on disk.',
+        error: 'No generated resume manifest was found on disk.',
       });
       return;
     }

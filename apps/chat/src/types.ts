@@ -1,5 +1,5 @@
 export interface IngestionStatus {
-  source?: 'generated' | 'imported';
+  source?: 'local';
   hasDataset?: boolean;
   indexBuilt?: boolean;
   candidateCount?: number;

@@ -1,5 +1,5 @@
 import { getCopy, type UiLanguage } from '../i18n/copy';
-import type { CandidateMatch, Citation } from '../types';
+import type { CandidateMatch } from '../types';
 
 function createElement<K extends keyof HTMLElementTagNameMap>(
   tagName: K,
@@ -19,12 +19,22 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
   return element;
 }
 
-function formatEstimatedExperience(years: number, language: UiLanguage): string {
-  if (language === 'es') {
-    return `${years} años estimados`;
+function formatYearsValue(years: number, language: UiLanguage): string {
+  if (years < 1) {
+    return language === 'es' ? 'menos de un año' : 'less than 1 year';
   }
 
-  return `${years} estimated years`;
+  return String(Math.max(1, Math.round(years)));
+}
+
+function formatEstimatedExperience(years: number, language: UiLanguage): string {
+  if (language === 'es') {
+    return years < 1 ? 'Menos de un año de experiencia' : `${formatYearsValue(years, language)} años estimados`;
+  }
+
+  return years < 1
+    ? 'Less than 1 year of experience'
+    : `${formatYearsValue(years, language)} estimated years`;
 }
 
 export function renderMatches(
@@ -59,31 +69,6 @@ export function renderMatches(
     );
 
     card.append(title, role, languagesLine);
-    container.appendChild(card);
-  }
-}
-
-export function renderCitations(
-  container: HTMLElement,
-  citations: Citation[],
-  language: UiLanguage
-) {
-  const copy = getCopy(language);
-  container.replaceChildren();
-
-  if (citations.length === 0) {
-    return;
-  }
-
-  container.appendChild(createElement('div', 'pill', copy.sources));
-
-  for (const citation of citations) {
-    const card = createElement('article', 'citation');
-    const title = createElement('strong', undefined, citation.fullName);
-    const fileName = createElement('div', 'meta', citation.pdfFileName);
-    const excerpt = createElement('div', 'meta', citation.excerpt);
-
-    card.append(title, fileName, excerpt);
     container.appendChild(card);
   }
 }

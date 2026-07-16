@@ -152,13 +152,21 @@ function getLocalizedCopy(language: ChatLanguage): LocalizedCopy {
   return LOCALIZED_COPY[language];
 }
 
+function formatYearsValue(years: number, language: ChatLanguage): string {
+  if (years < 1) {
+    return language === 'es' ? 'menos de un año' : 'less than 1 year';
+  }
+
+  return String(Math.max(1, Math.round(years)));
+}
+
 function buildCandidateContext(match: ResumeRagCandidateMatch, language: ChatLanguage): string {
   const copy = getLocalizedCopy(language);
 
   return [
     `${copy.candidateLabel}: ${match.fullName}`,
     `${copy.roleLabel}: ${match.primaryRole}`,
-    `${copy.experienceLabel}: ${match.totalEstimatedExperienceYears}`,
+    `${copy.experienceLabel}: ${formatYearsValue(match.totalEstimatedExperienceYears, language)}`,
     `${copy.languagesLabel}: ${match.languages.join(', ') || copy.unknown}`,
     `${copy.skillsLabel}: ${match.skills.join(', ') || copy.unknown}`,
     ...match.citations.map(
@@ -264,8 +272,12 @@ function createFallbackAnswer(
     const citationLabel = topCitation ? `[${topCitation.candidateId}:${topCitation.chunkId}]` : '';
     const experienceLabel =
       language === 'es'
-        ? `${match.totalEstimatedExperienceYears} años estimados`
-        : `${match.totalEstimatedExperienceYears} estimated years`;
+        ? match.totalEstimatedExperienceYears < 1
+          ? 'menos de un año de experiencia'
+          : `${formatYearsValue(match.totalEstimatedExperienceYears, language)} años estimados`
+        : match.totalEstimatedExperienceYears < 1
+          ? 'less than 1 year of experience'
+          : `${formatYearsValue(match.totalEstimatedExperienceYears, language)} estimated years`;
 
     return `${index + 1}. ${match.fullName} - ${match.primaryRole} (${experienceLabel}) ${citationLabel}`.trim();
   });

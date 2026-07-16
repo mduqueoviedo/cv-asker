@@ -1,4 +1,4 @@
-import { importedResumePdfDirectory } from './paths.js';
+import { resumePdfDirectory } from './paths.js';
 import type {
   ResumeDocumentLanguage,
   ResumeDocumentLanguageSelection,
@@ -62,7 +62,7 @@ export const resumeGenerationConfig = {
       topMatchesForAnswer: 4,
     },
     sources: {
-      importedPdfDirectory: importedResumePdfDirectory,
+      pdfDirectory: resumePdfDirectory,
     },
   },
   openRouter: {

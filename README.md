@@ -28,7 +28,7 @@ Inside the API, the code is grouped by domain:
 There are two practical modes:
 
 - demo mode: generate resumes with the app
-- utility mode: drop real PDF CVs into `storage/imported-resumes/pdfs`
+- utility mode: drop PDF CVs into `storage/resumes/pdfs`
 
 Important rule:
 
@@ -66,7 +66,7 @@ If you want to skip generation and use a real batch of CVs:
 1. Put the PDF files in:
 
 ```text
-storage/imported-resumes/pdfs
+storage/resumes/pdfs
 ```
 
 2. Start the app:
@@ -77,8 +77,8 @@ pnpm dev
 
 3. Open `/chat` or call `/api/rag/ask`
 
-If PDFs are detected in that folder, the RAG layer will use them automatically.
-If not, it falls back to the generated dataset.
+The chat and RAG layer read from that single PDF folder.
+Generated resumes also land there, so reindexing always processes the same storage location.
 
 ## Repository Shape
 

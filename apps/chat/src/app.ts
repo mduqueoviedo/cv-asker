@@ -1,5 +1,5 @@
 import { askChatQuestion, fetchIngestionStatus, rebuildIngestionIndex } from './api/chat-api';
-import { renderCitations, renderMatches } from './components/renderers';
+import { renderMatches } from './components/renderers';
 import { getCopy, type UiLanguage } from './i18n/copy';
 import type { ChatAnswerResult, IngestionStatus } from './types';
 
@@ -21,7 +21,6 @@ interface ChatDom {
   resultTitle: HTMLElement;
   answerOutput: HTMLElement;
   matchesNode: HTMLElement;
-  citationsNode: HTMLElement;
   sourceState: HTMLElement;
   readinessState: HTMLElement;
   candidateCount: HTMLElement;
@@ -54,7 +53,7 @@ function describeSource(status: IngestionStatus, language: UiLanguage): string {
     return copy.noCvs;
   }
 
-  return status.source === 'imported' ? copy.yourPdfs : copy.demoPdfs;
+  return copy.localPdfs;
 }
 
 function describeReadiness(
@@ -94,7 +93,6 @@ export function createChatApp() {
     resultTitle: getElement('resultTitle'),
     answerOutput: getElement('answerOutput'),
     matchesNode: getElement('matches'),
-    citationsNode: getElement('citations'),
     sourceState: getElement('sourceState'),
     readinessState: getElement('readinessState'),
     candidateCount: getElement('candidateCount'),
@@ -131,7 +129,6 @@ export function createChatApp() {
     if (lastResult) {
       dom.resultTitle.textContent = copy.answerReady;
       renderMatches(dom.matchesNode, lastResult.matches ?? [], currentLanguage);
-      renderCitations(dom.citationsNode, lastResult.citations ?? [], currentLanguage);
     } else {
       dom.resultTitle.textContent = copy.idleTitle;
     }
@@ -168,7 +165,6 @@ export function createChatApp() {
       dom.resultTitle.textContent = copy.answerReady;
       dom.answerOutput.textContent = lastResult.answer;
       renderMatches(dom.matchesNode, lastResult.matches ?? [], currentLanguage);
-      renderCitations(dom.citationsNode, lastResult.citations ?? [], currentLanguage);
       await loadStatus();
     } catch (error) {
       dom.resultTitle.textContent = copy.error;

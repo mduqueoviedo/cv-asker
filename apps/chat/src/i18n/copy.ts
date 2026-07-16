@@ -7,8 +7,7 @@ export interface UiCopy {
   sourceLabel: string;
   statusLabel: string;
   cvCountLabel: string;
-  yourPdfs: string;
-  demoPdfs: string;
+  localPdfs: string;
   noCvs: string;
   readyStatus: string;
   preparingStatus: string;
@@ -42,14 +41,13 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     sourceLabel: 'CV source',
     statusLabel: 'Status',
     cvCountLabel: 'CVs loaded',
-    yourPdfs: 'Your PDFs',
-    demoPdfs: 'Demo PDFs',
+    localPdfs: 'Local PDFs',
     noCvs: 'No CVs found',
     readyStatus: 'Ready',
     preparingStatus: 'Preparing',
     refreshingStatus: 'Refreshing',
     unavailableStatus: 'Unavailable',
-    statusHint: 'Place PDFs in `storage/imported-resumes/pdfs` to use your own CVs.',
+    statusHint: 'Place PDFs in `storage/resumes/pdfs` and reindex to update the chat dataset.',
     refreshButton: 'Refresh CVs',
     composerPill: 'Ask about the CVs',
     placeholder:
@@ -76,14 +74,13 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     sourceLabel: 'Fuente',
     statusLabel: 'Estado',
     cvCountLabel: 'CVs cargados',
-    yourPdfs: 'Tus PDFs',
-    demoPdfs: 'PDFs de demo',
+    localPdfs: 'PDFs locales',
     noCvs: 'No hay CVs disponibles',
     readyStatus: 'Listo',
     preparingStatus: 'Preparando índice',
     refreshingStatus: 'Actualizando índice',
     unavailableStatus: 'Sin datos',
-    statusHint: 'Coloca PDFs en `storage/imported-resumes/pdfs` para usar tu propio conjunto de CVs.',
+    statusHint: 'Coloca PDFs en `storage/resumes/pdfs` y reindexa para actualizar el conjunto del chat.',
     refreshButton: 'Reindexar CVs',
     composerPill: 'Pregunta sobre los CVs',
     placeholder:

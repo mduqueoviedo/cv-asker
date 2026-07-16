@@ -10,7 +10,7 @@ import {
   supportedResumeLanguages,
   supportedResumeTemplates,
 } from '../../../shared/config/resume-generation.js';
-import { generatedResumesDirectory } from '../../../shared/config/paths.js';
+import { resumesDirectory, resumePdfDirectory } from '../../../shared/config/paths.js';
 import type {
   CandidateResume,
   GenerateResumeDatasetInput,
@@ -33,9 +33,9 @@ import {
 } from './resume-llm-text.service.js';
 import { createResumePdfRenderer } from './resume-renderer.service.js';
 
-const OUTPUT_DIRECTORY = generatedResumesDirectory;
-const PDF_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'pdfs');
-const MANIFEST_PATH = path.join(OUTPUT_DIRECTORY, 'manifest.json');
+const OUTPUT_DIRECTORY = resumesDirectory;
+const PDF_DIRECTORY = resumePdfDirectory;
+const MANIFEST_PATH = path.join(OUTPUT_DIRECTORY, 'generated-manifest.json');
 const LEGACY_HTML_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'html');
 const LEGACY_METADATA_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'metadata');
 const resumeSeedDataProvider = createFakerResumeSeedDataProvider();
@@ -152,13 +152,49 @@ function resolveRequestedModels(input: GenerateResumeDatasetInput): string[] {
   return getDefaultResumeLlmModels();
 }
 
-async function ensureOutputDirectories(mode: ResumeGenerationMode) {
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await stat(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function rewriteManifestForCurrentStorage(manifest: ResumeDatasetManifest): ResumeDatasetManifest {
+  return {
+    ...manifest,
+    outputDirectory: OUTPUT_DIRECTORY,
+    pdfDirectory: PDF_DIRECTORY,
+    resumes: manifest.resumes.map((resume) => ({
+      ...resume,
+      pdfFilePath: path.join(PDF_DIRECTORY, resume.pdfFileName),
+    })),
+  };
+}
+
+async function deleteGeneratedPdfArtifacts(manifest: ResumeDatasetManifest | null) {
+  if (!manifest) {
+    return;
+  }
+
+  for (const resume of manifest.resumes) {
+    await rm(resume.pdfFilePath, { force: true });
+  }
+}
+
+async function ensureOutputDirectories(
+  mode: ResumeGenerationMode,
+  existingManifest: ResumeDatasetManifest | null
+) {
   if (mode === 'replace') {
-    await rm(OUTPUT_DIRECTORY, { recursive: true, force: true });
+    await deleteGeneratedPdfArtifacts(existingManifest);
+    await rm(MANIFEST_PATH, { force: true });
   }
 
   await rm(LEGACY_HTML_DIRECTORY, { recursive: true, force: true });
   await rm(LEGACY_METADATA_DIRECTORY, { recursive: true, force: true });
+  await mkdir(OUTPUT_DIRECTORY, { recursive: true });
   await mkdir(PDF_DIRECTORY, { recursive: true });
 }
 
@@ -372,7 +408,7 @@ export async function generateResumeDataset(
     `[Resume Generator] Starting dataset generation: count=${count} mode=${mode} language=${language} template=${template} models=${llmModels.join(', ')}`
   );
 
-  await ensureOutputDirectories(mode);
+  await ensureOutputDirectories(mode, existingManifest);
   console.log('[Resume Generator] Output directories ready.');
 
   const plannedDrafts: PlannedResumeDraft[] = Array.from({ length: count }, (_, index) => ({
@@ -536,7 +572,7 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
       metadataDirectory?: string;
     };
 
-    return {
+    return rewriteManifestForCurrentStorage({
       ...manifestWithoutLegacyMetadata,
       lastTemplate: manifest.lastTemplate ?? resumeGenerationConfig.defaults.template,
       lastBatchLanguage: manifest.lastBatchLanguage ?? resumeGenerationConfig.defaults.language,
@@ -568,7 +604,7 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
       lastImageGeneration: manifest.lastImageGeneration ?? createImageGenerationMetadata(0),
       count: manifest.count ?? normalizedResumes.length,
       resumes: normalizedResumes,
-    } as ResumeDatasetManifest;
+    } as ResumeDatasetManifest);
   } catch {
     return null;
   }

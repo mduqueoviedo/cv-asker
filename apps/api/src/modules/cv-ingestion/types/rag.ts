@@ -1,7 +1,7 @@
 import type { ResumeDocumentLanguage, ResumeTemplateId } from '../../cv-generation/types/resume.js';
 
 export type ResumeSourceType = 'generated-dataset' | 'ad-hoc-file' | 'imported-folder';
-export type ResumeRagDatasetSource = 'generated' | 'imported';
+export type ResumeRagDatasetSource = 'local';
 export type ParsedResumeDocumentLanguage = ResumeDocumentLanguage | 'unknown';
 export type ParsedResumeTemplateId = ResumeTemplateId | 'unknown';
 

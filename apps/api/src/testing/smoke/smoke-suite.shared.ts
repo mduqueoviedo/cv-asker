@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { access, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { importedResumePdfDirectory, repositoryRootDirectory } from '../../shared/config/paths.js';
+import { repositoryRootDirectory, resumePdfDirectory } from '../../shared/config/paths.js';
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,16 +20,16 @@ interface RunSmokeSuiteOptions {
 
 async function hasGeneratedDataset() {
   try {
-    await access(path.join(repositoryRootDirectory, 'storage', 'generated-resumes', 'manifest.json'));
+    await access(path.join(repositoryRootDirectory, 'storage', 'resumes', 'generated-manifest.json'));
     return true;
   } catch {
     return false;
   }
 }
 
-async function hasImportedDataset() {
+async function hasLocalPdfDataset() {
   try {
-    const entries = await readdir(importedResumePdfDirectory);
+    const entries = await readdir(resumePdfDirectory);
     return entries.some((entry) => entry.toLowerCase().endsWith('.pdf'));
   } catch {
     return false;
@@ -37,8 +37,8 @@ async function hasImportedDataset() {
 }
 
 async function hasAnyDataset() {
-  const [generated, imported] = await Promise.all([hasGeneratedDataset(), hasImportedDataset()]);
-  return generated || imported;
+  const [generated, localPdfs] = await Promise.all([hasGeneratedDataset(), hasLocalPdfDataset()]);
+  return generated || localPdfs;
 }
 
 async function runStep(step: SmokeStep) {
@@ -93,9 +93,7 @@ export async function runSmokeSuite(options: RunSmokeSuiteOptions) {
       }
     );
   } else {
-    console.log(
-      '[Smoke Suite] No generated or imported dataset found. Skipping dataset-dependent smoke tests.'
-    );
+    console.log('[Smoke Suite] No local PDF dataset found. Skipping dataset-dependent smoke tests.');
   }
 
   if (options.includeHttp && datasetAvailable) {
