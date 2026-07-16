@@ -16,24 +16,28 @@ const SUPPORTED_LANGUAGE_NAMES = [
   'espanol',
   'español',
   'ingles',
-  'ingles',
+  'inglés',
   'frances',
   'francés',
   'aleman',
-  'aleman',
+  'alemán',
   'italiano',
   'portugues',
   'portugués',
   'japones',
-  'japones',
+  'japonés',
 ];
 
 function detectIntent(question: string): ResumeRagAnswerIntent {
-  if (/\b(how many|cu[aá]nt[oa]s?|count|numero de)\b/i.test(question)) {
+  if (/\b(how many|cu[aá]nt[oa]s?|count|n[uú]mero de)\b/i.test(question)) {
     return 'count';
   }
 
-  if (/\b(list|show|which|who|find|lista|muestra|que candidatos|que perfiles)\b/i.test(question)) {
+  if (
+    /\b(list|show|which|who|find|lista|muestra|qu[eé] candidatos|qu[eé] perfiles)\b/i.test(
+      question
+    )
+  ) {
     return 'list';
   }
 
@@ -58,7 +62,7 @@ function detectLanguages(normalizedQuestion: string): string[] {
 }
 
 function detectMinimumExperienceYears(question: string): number | null {
-  const match = question.match(/\b(\d{1,2})\+?\s*(?:years?|a[nn]os?)\b/i);
+  const match = question.match(/\b(\d{1,2})\+?\s*(?:years?|a(?:ñ|n)o?s?)\b/i);
   const parsed = match ? Number(match[1]) : Number.NaN;
 
   if (Number.isInteger(parsed) && parsed >= 0) {

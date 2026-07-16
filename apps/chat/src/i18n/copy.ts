@@ -72,7 +72,7 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     eyebrow: 'Buscar CVs',
     languageLabel: 'Interfaz',
     sidebarDescription:
-      'Haz preguntas sobre los CVs cargados en este momento. La aplicacion usa tus PDFs automaticamente cuando estan disponibles.',
+      'Haz preguntas sobre los CVs cargados en este momento. La aplicación usa tus PDFs automáticamente cuando están disponibles.',
     sourceLabel: 'Origen',
     statusLabel: 'Estado',
     cvCountLabel: 'CVs cargados',
@@ -87,8 +87,8 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     refreshButton: 'Actualizar CVs',
     composerPill: 'Pregunta al dataset',
     placeholder:
-      'Ejemplo: Que candidatos hablan aleman y tienen mas de 4 anos de experiencia en sistemas backend?',
-    composerHint: 'Pulsa Enter para enviar. Usa Shift+Enter para una nueva linea.',
+      'Ejemplo: ¿Qué candidatos hablan alemán y tienen más de 4 años de experiencia en sistemas backend?',
+    composerHint: 'Pulsa Enter para enviar. Usa Shift+Enter para una nueva línea.',
     askButton: 'Preguntar',
     resultPill: 'Respuesta',
     idleTitle: 'Lista',
@@ -96,11 +96,11 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     working: 'Procesando',
     error: 'Error',
     thinking: 'Pensando...',
-    noQuestionYet: 'Todavia no se ha hecho ninguna pregunta.',
+    noQuestionYet: 'Todavía no se ha hecho ninguna pregunta.',
     topMatches: 'CVs que mejor encajan',
     sources: 'Fragmentos relevantes',
     estimatedYears: 'estimados',
-    requestFailed: 'No se pudo completar la busqueda.',
+    requestFailed: 'No se pudo completar la búsqueda.',
   },
 };
 

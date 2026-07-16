@@ -81,12 +81,12 @@ const LOCALIZED_COPY: Record<ChatLanguage, LocalizedCopy> = {
     workingTitle: 'Procesando',
     errorTitle: 'Error',
     thinking: 'Pensando...',
-    noQuestionYet: 'Todavia no se ha hecho ninguna pregunta.',
+    noQuestionYet: 'Todavía no se ha hecho ninguna pregunta.',
     topMatchesLabel: 'Mejores Perfiles',
     sourcesLabel: 'Fuentes',
     candidateLabel: 'Candidato',
     roleLabel: 'Rol',
-    experienceLabel: 'Anos estimados de experiencia',
+    experienceLabel: 'Años estimados de experiencia',
     languagesLabel: 'Idiomas',
     skillsLabel: 'Competencias',
     citationLabel: 'Cita',
@@ -94,9 +94,9 @@ const LOCALIZED_COPY: Record<ChatLanguage, LocalizedCopy> = {
       `No he encontrado coincidencias claras para "${question}" en el conjunto actual de CVs.`,
     topMatches: (question) => `Mejores coincidencias para "${question}":`,
     rankingNote:
-      'Estos resultados se han generado a partir del contenido extraido de los PDF y se han ordenado con recuperacion hibrida.',
+      'Estos resultados se han generado a partir del contenido extraído de los PDF y se han ordenado con recuperación híbrida.',
     answerInstruction:
-      'Responde en espanol. Si la evidencia no es suficiente, indicalo con claridad.',
+      'Responde en español. Si la evidencia no es suficiente, indícalo con claridad.',
   },
 };
 
