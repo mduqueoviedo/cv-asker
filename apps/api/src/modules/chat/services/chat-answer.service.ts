@@ -592,6 +592,17 @@ function createCatalogAnswer(matches: ResumeRagCandidateMatch[], language: ChatL
     : `I found ${matches.length} CVs in the system and I am showing them below.`;
 }
 
+function shouldUseExhaustiveListAnswer(
+  matches: ResumeRagCandidateMatch[],
+  analysis: ResumeRagQueryAnalysis
+): boolean {
+  if (analysis.resultScope === 'catalog') {
+    return true;
+  }
+
+  return analysis.topK === null && matches.length > 3;
+}
+
 function createFallbackAnswer(
   question: string,
   matches: ResumeRagCandidateMatch[],
@@ -615,6 +626,12 @@ function createFallbackAnswer(
 
   if (matches.length === 0) {
     return createNaturalNoMatchesAnswer(question, analysis, language);
+  }
+
+  if (shouldUseExhaustiveListAnswer(matches, analysis)) {
+    return language === 'es'
+      ? `He encontrado ${matches.length} perfiles relevantes para "${question}". Te muestro la lista completa debajo.`
+      : `I found ${matches.length} relevant profiles for "${question}". I am showing the full list below.`;
   }
 
   if (language === 'es' && /\b(tenemos|hay)\b.*\b(algun|alguna|alguno|algunos|algunas)\b/i.test(normalizeSearchText(question))) {
@@ -710,9 +727,11 @@ async function generateGroundedAnswer(
     model,
     maxTokens: resumeGenerationConfig.rag.answering.maxTokens,
     systemInstruction:
-      'You are CV Asker. Answer only from the provided resume evidence. Be concise, practical, and explicit about uncertainty. The source CVs may be in different languages. Write plain text only. Do not use markdown, bullet lists, numbered lists, or bold formatting. Do not include internal chunk identifiers, bracketed references, or raw citation labels in the final answer. If no candidate clearly satisfies the question, say so directly and do not enumerate non-matching candidates.',
+      'You are CV Asker. Answer only from the provided resume evidence. Be concise, practical, and explicit about uncertainty. The source CVs may be in different languages. Write plain text only. Do not use markdown, bullet lists, numbered lists, or bold formatting. Do not include internal chunk identifiers, bracketed references, or raw citation labels in the final answer. If no candidate clearly satisfies the question, say so directly and do not enumerate non-matching candidates. When many matches exist and the UI shows them separately, do not mention only a small subset unless the user explicitly asked for top or best results.',
     prompt: [
       `Question:\n${question}`,
+      '',
+      `Total matching candidates: ${matches.length}`,
       '',
       'Resume evidence:',
       context,
@@ -740,7 +759,7 @@ export async function answerResumeRagQuestion(
     responseLanguage
   );
 
-  if (result.analysis.resultScope === 'catalog') {
+  if (shouldUseExhaustiveListAnswer(result.matches, result.analysis)) {
     const answer = createFallbackAnswer(question, result.matches, result.analysis, responseLanguage);
 
     return {
