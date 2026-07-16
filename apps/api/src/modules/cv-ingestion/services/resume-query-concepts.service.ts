@@ -158,6 +158,10 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function normalizedAliasEqualsValue(alias: string, normalizedValue: string): boolean {
+  return normalizeSearchText(alias) === normalizedValue;
+}
+
 function normalizedTextContainsAlias(normalizedText: string, alias: string): boolean {
   const normalizedAlias = normalizeSearchText(alias);
 
@@ -202,6 +206,67 @@ export function extractResumeRagQueryConcepts(question: string): ResumeRagQueryC
   }
 
   return concepts;
+}
+
+export function listResumeRagConceptCanonicals(
+  kind?: keyof ResumeRagQueryConcepts
+): string[] {
+  return CONCEPT_DEFINITIONS.filter((definition) => !kind || definition.kind === kind).map(
+    (definition) => definition.canonical
+  );
+}
+
+export function normalizeResumeRagConceptValue(
+  value: string,
+  kind?: keyof ResumeRagQueryConcepts
+): string | null {
+  const normalizedValue = normalizeSearchText(value).trim();
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  const directMatch = CONCEPT_DEFINITIONS_BY_CANONICAL.get(normalizedValue);
+
+  if (directMatch && (!kind || directMatch.kind === kind)) {
+    return directMatch.canonical;
+  }
+
+  for (const definition of CONCEPT_DEFINITIONS) {
+    if (kind && definition.kind !== kind) {
+      continue;
+    }
+
+    if (
+      normalizedAliasEqualsValue(definition.canonical, normalizedValue) ||
+      definition.aliases.some((alias) => normalizedAliasEqualsValue(alias, normalizedValue))
+    ) {
+      return definition.canonical;
+    }
+  }
+
+  return null;
+}
+
+export function normalizeResumeRagConceptValues(
+  values: string[],
+  kind: keyof ResumeRagQueryConcepts
+): string[] {
+  const normalizedValues: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const normalized = normalizeResumeRagConceptValue(value, kind);
+
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    normalizedValues.push(normalized);
+  }
+
+  return normalizedValues;
 }
 
 export function getResumeRagConceptAliases(canonical: string): string[] {

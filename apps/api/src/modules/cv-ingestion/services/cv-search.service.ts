@@ -733,7 +733,7 @@ export async function searchResumeRag(
   options: { forceRebuild?: boolean } = {}
 ): Promise<ResumeRagSearchResult> {
   const index = await ensureResumeRagIndex({ forceRebuild: options.forceRebuild });
-  const analysis = analyzeResumeRagQuestion(question);
+  const analysis = await analyzeResumeRagQuestion(question);
 
   if (analysis.resultScope === 'catalog') {
     return {
