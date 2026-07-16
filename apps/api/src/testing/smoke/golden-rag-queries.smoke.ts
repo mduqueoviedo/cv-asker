@@ -87,6 +87,28 @@ async function runExperianQuery() {
   );
 }
 
+async function runNamedExperianQuery() {
+  const result = await searchResumeRag('Alguien trabajó en una empresa llamada Experian?', {
+    forceRebuild: false,
+  });
+
+  assert.ok(result.matches.length >= 1, 'Expected at least one Experian match for the named-company phrasing.');
+  assert.match(result.matches[0]?.fullName ?? '', /Marcos Duque Oviedo/i);
+
+  for (const match of result.matches) {
+    assert.ok(
+      includesTokenVariant(buildMatchEvidence(result, match), ['Experian']),
+      `Unexpected non-Experian match for named-company phrasing: ${match.candidateId}`
+    );
+  }
+
+  console.log(
+    `[Golden RAG] OK experian-named-company-query matches=${result.matches
+      .map((match) => match.candidateId)
+      .join(', ')}`
+  );
+}
+
 async function runWebScrapingQuery() {
   const result = await searchResumeRag('alguien ha trabajado en webscraping?', {
     forceRebuild: false,
@@ -246,6 +268,7 @@ async function main() {
   await runChineseNegativeQuery();
   await runMarcosLookupQuery();
   await runExperianQuery();
+  await runNamedExperianQuery();
   await runWebScrapingQuery();
   await runCandidateExperienceConfirmationQuery();
   await runCandidateLanguageConfirmationQuery();

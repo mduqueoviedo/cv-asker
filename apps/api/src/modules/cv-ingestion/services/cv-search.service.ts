@@ -80,8 +80,14 @@ const GENERIC_QUERY_TERMS = new Set([
   'ha',
   'habla',
   'hablan',
+  'llamada',
+  'llamadas',
+  'llamado',
+  'llamados',
   'mas',
   'more',
+  'named',
+  'called',
   'than',
   'tiene',
   'tienen',
@@ -108,6 +114,7 @@ const GENERIC_QUERY_TERMS = new Set([
   'technologies',
   'tool',
   'tools',
+  'trabajo',
   'worked',
   'working',
   'years',
@@ -502,6 +509,20 @@ function computeConstraintBoost(
   return matchedTokens / constraintTokens.length;
 }
 
+function computeOrganizationConstraintBoost(
+  chunk: ResumeRagIndexedChunk,
+  organizationConstraintTokens: string[]
+): number {
+  if (organizationConstraintTokens.length === 0) {
+    return 0;
+  }
+
+  const chunkTokens = new Set(tokenizeSearchText([chunk.text, chunk.keywords.join(' ')].join(' ')));
+  const matchedTokens = organizationConstraintTokens.filter((token) => chunkTokens.has(token)).length;
+
+  return matchedTokens / organizationConstraintTokens.length;
+}
+
 function computeRoleMatchBoost(
   profile: ResumeRagCandidateProfile,
   queryRoleTokens: string[]
@@ -735,6 +756,10 @@ export async function searchResumeRag(
         organizationConstraintTokens,
         requiredTermConstraintTokens
       );
+      const organizationConstraintBoost = computeOrganizationConstraintBoost(
+        chunk,
+        organizationConstraintTokens
+      );
       const roleBoost = computeRoleMatchBoost(profile, queryRoleTokens);
       const derivedRoleAffinityBoost = computeDerivedRoleAffinityBoost(
         analysis,
@@ -753,11 +778,16 @@ export async function searchResumeRag(
         facetScore * 0.1 +
         sectionBoost * 0.05 +
         constraintBoost * 0.1 +
+        organizationConstraintBoost * 0.22 +
         roleBoost * 0.06 +
         conceptBoost * 0.15 +
         derivedRoleAffinityBoost * 0.18;
 
-      if (score <= 0 && analysis.searchTerms.length > 0) {
+      if (
+        score <= 0 &&
+        !(analysis.queryKind === 'organization_lookup' && organizationConstraintBoost > 0) &&
+        analysis.searchTerms.length > 0
+      ) {
         return null;
       }
 
