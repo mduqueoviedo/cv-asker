@@ -417,11 +417,11 @@ function createExperienceAchievements(
   const achievementOptions =
     language === 'es-ES'
       ? [
-          `Desarrollo mejoras de producto en ${domain} usando ${primaryTechnology} y ${secondaryTechnology}, con foco en calidad tecnica y entregas predecibles.`,
-          `Impulso iniciativas internas con ${primaryTechnology} para simplificar procesos del equipo y reducir friccion operativa.`,
-          `Colaboro con producto y diseno para aterrizar requisitos ambiguos y convertirlos en entregables mantenibles.`,
-          `Refuerzo la estabilidad de soluciones en ${domain} mejorando pruebas, observabilidad y consistencia en la implementacion.`,
-          `Participo en decisiones tecnicas con ${secondaryTechnology} y ${tertiaryTechnology} para sostener el roadmap sin degradar la calidad.`,
+          `Desarrollo mejoras de producto en ${domain} usando ${primaryTechnology} y ${secondaryTechnology}, con foco en calidad técnica y entregas predecibles.`,
+          `Impulso iniciativas internas con ${primaryTechnology} para simplificar procesos del equipo y reducir fricción operativa.`,
+          `Colaboro con producto y diseño para aterrizar requisitos ambiguos y convertirlos en entregables mantenibles.`,
+          `Refuerzo la estabilidad de soluciones en ${domain} mejorando pruebas, observabilidad y consistencia en la implementación.`,
+          `Participo en decisiones técnicas con ${secondaryTechnology} y ${tertiaryTechnology} para sostener el roadmap sin degradar la calidad.`,
           `Aporto criterio de ${role.toLowerCase()} para priorizar mejoras incrementales y acelerar la entrega de valor.`,
         ]
       : [
@@ -549,7 +549,7 @@ function createSummary(
   specialty: string
 ): string {
   if (language === 'es-ES') {
-    return `${role} con ${totalExperienceYears} anos de experiencia construyendo ${domain} con ${technologies.slice(0, 3).join(', ')}. Destaca por ${specialty}, buena comunicacion cross-functional y una ejecucion fiable en entornos de producto.`;
+    return `${role} con ${totalExperienceYears} años de experiencia construyendo ${domain} con ${technologies.slice(0, 3).join(', ')}. Destaca por ${specialty}, buena comunicación cross-functional y una ejecución fiable en entornos de producto.`;
   }
 
   return `${role} with ${totalExperienceYears} years of experience building ${domain} with ${technologies.slice(0, 3).join(', ')}. Known for ${specialty}, cross-functional collaboration, and reliable execution in product-driven teams.`;
@@ -563,9 +563,9 @@ function createHighlights(
 ): string[] {
   return language === 'es-ES'
     ? [
-        `Aporta criterio de producto y ejecucion tecnica como ${role.toLowerCase()}.`,
+        `Aporta criterio de producto y ejecución técnica como ${role.toLowerCase()}.`,
         `Trabaja con ${technologies.slice(0, 2).join(' y ')} sin perder foco en simplicidad y calidad.`,
-        `Refuerza ${specialty} en equipos cross-functional y ciclos de entrega rapidos.`,
+        `Refuerza ${specialty} en equipos cross-functional y ciclos de entrega rápidos.`,
       ]
     : [
         `Brings product judgment in addition to technical execution as a ${role.toLowerCase()}.`,

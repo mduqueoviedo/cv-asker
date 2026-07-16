@@ -5,7 +5,7 @@ function parseQuestion(argv: string[]): string {
   const question = normalizedArgs.join(' ').trim();
 
   if (!question) {
-    throw new Error('Provide a question after `pnpm smoke:ask --`.');
+    throw new Error('Provide a question after the smoke script path or pass it through the test runner.');
   }
 
   return question;

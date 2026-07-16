@@ -7,11 +7,7 @@ export const apiSourceDirectory = path.resolve(currentDirectory, '../..');
 export const apiPackageDirectory = path.resolve(currentDirectory, '../../..');
 export const repositoryRootDirectory = path.resolve(currentDirectory, '../../../../..');
 export const storageDirectory = path.join(repositoryRootDirectory, 'storage');
-export const generatedResumesDirectory = path.join(storageDirectory, 'generated-resumes');
-export const importedResumePdfDirectory = path.join(
-  storageDirectory,
-  'imported-resumes',
-  'pdfs'
-);
+export const resumesDirectory = path.join(storageDirectory, 'resumes');
+export const resumePdfDirectory = path.join(resumesDirectory, 'pdfs');
 export const ragStorageDirectory = path.join(storageDirectory, 'rag');
 export const chatDistributionDirectory = path.join(repositoryRootDirectory, 'apps', 'chat', 'dist');

@@ -48,6 +48,7 @@
 
 .result-header {
   align-items: baseline;
+  margin-bottom: 16px;
 }
 
 @media (max-width: 920px) {

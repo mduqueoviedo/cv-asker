@@ -28,7 +28,7 @@ Inside the API, the code is grouped by domain:
 There are two practical modes:
 
 - demo mode: generate resumes with the app
-- utility mode: drop real PDF CVs into `storage/imported-resumes/pdfs`
+- utility mode: drop PDF CVs into `storage/resumes/pdfs`
 
 Important rule:
 
@@ -66,7 +66,7 @@ If you want to skip generation and use a real batch of CVs:
 1. Put the PDF files in:
 
 ```text
-storage/imported-resumes/pdfs
+storage/resumes/pdfs
 ```
 
 2. Start the app:
@@ -77,8 +77,8 @@ pnpm dev
 
 3. Open `/chat` or call `/api/rag/ask`
 
-If PDFs are detected in that folder, the RAG layer will use them automatically.
-If not, it falls back to the generated dataset.
+The chat and RAG layer read from that single PDF folder.
+Generated resumes also land there, so reindexing always processes the same storage location.
 
 ## Repository Shape
 
@@ -107,16 +107,9 @@ apps/
 pnpm generate
 pnpm dev
 pnpm build
-pnpm rag:index
-pnpm rag:ask -- "Which candidates speak English and have backend experience?"
-```
-
-Useful extra checks:
-
-```bash
+pnpm typecheck
 pnpm test:smoke
-pnpm smoke:extract
-pnpm smoke:extract:file -- /path/to/any-cv.pdf
+pnpm test:smoke:costly
 ```
 
 ## Smoke Tests
@@ -137,24 +130,18 @@ Main commands:
 
 ```bash
 pnpm test:smoke
-pnpm test:smoke:http
-pnpm test:smoke:ai
-pnpm test:smoke:full
+pnpm test:smoke:costly
 ```
 
 What each one does:
 
 - `pnpm test:smoke`: safe baseline suite, focused on local checks
-- `pnpm test:smoke:http`: baseline suite plus local HTTP integration
-- `pnpm test:smoke:ai`: baseline suite plus a chat-answer smoke
-- `pnpm test:smoke:full`: includes generation before the rest of the suite
+- `pnpm test:smoke:costly`: baseline suite plus local HTTP integration and a real AI-backed ask
 
 Notes:
 
 - Dataset-dependent smokes are skipped automatically if no generated or imported dataset is available.
-- The HTTP smoke opens a local port, so it is separated from the default baseline suite.
-- The AI-oriented smokes may call the configured LLM provider if credentials are present.
-- Legacy commands like `pnpm rag:index` and `pnpm rag:ask` still work as aliases.
+- The costly suite opens a local port and may call the configured external LLM provider if credentials are present.
 
 ## Main Endpoints
 

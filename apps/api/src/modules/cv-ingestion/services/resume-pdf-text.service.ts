@@ -1,11 +1,16 @@
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getResumeDatasetManifest } from '../../cv-generation/services/resume-generator.service.js';
+import { resumeGenerationConfig } from '../../../shared/config/resume-generation.js';
 import { ragStorageDirectory } from '../../../shared/config/paths.js';
 import type {
   ExtractedResumeTextDocument,
   ResumeRagDocumentArtifacts,
 } from '../types/rag.js';
+import type {
+  ResumeDocumentLanguage,
+  ResumeTemplateId,
+} from '../../cv-generation/types/resume.js';
 import { extractPdfText } from './pdf-text-extractor.service.js';
 import { chunkResumeSections } from './resume-chunker.service.js';
 import { parseResumeSections } from './resume-section-parser.service.js';
@@ -29,11 +34,23 @@ export interface ExtractSingleResumePdfOptions extends ExtractResumeDatasetTextO
   primaryRole?: string;
   datasetId?: string;
   candidateIdPrefix?: string;
+  documentLanguage?: ResumeDocumentLanguage;
+  template?: ResumeTemplateId;
+  sourceType?: ExtractedResumeTextDocument['sourceType'];
+}
+
+export interface KnownResumePdfMetadata {
+  candidateId: string;
+  fullName: string;
+  primaryRole: string;
+  documentLanguage: ResumeDocumentLanguage;
+  template: ResumeTemplateId;
 }
 
 export interface ExtractResumePdfDirectoryOptions extends ExtractResumeDatasetTextOptions {
   datasetId: string;
   candidateIdPrefix?: string;
+  knownResumesByFileName?: Map<string, KnownResumePdfMetadata>;
 }
 
 function createSlug(value: string): string {
@@ -117,64 +134,30 @@ export async function extractResumeDatasetText(
 }> {
   const manifest = await getResumeDatasetManifest();
 
-  if (!manifest) {
-    throw new Error('No generated resume dataset was found on disk.');
-  }
-
-  const documents: ResumeRagDocumentArtifacts[] = [];
-
-  for (const resume of manifest.resumes) {
-    console.log(`[RAG Extract] Parsing PDF for ${resume.id} from ${resume.pdfFilePath}`);
-    const rawText = await extractPdfText(resume.pdfFilePath, {
-      preserveLayout: options.preserveLayout,
-    });
-    const normalized = normalizeExtractedPdfText(rawText);
-
-    const document: ExtractedResumeTextDocument = {
-      datasetId: manifest.datasetId,
-      sourceType: 'generated-dataset',
-      candidateId: resume.id,
-      fullName: resume.fullName,
-      primaryRole: resume.primaryRole,
-      documentLanguage: resume.documentLanguage,
-      template: resume.template,
-      pdfFileName: resume.pdfFileName,
-      pdfFilePath: resume.pdfFilePath,
-      extraction: {
-        tool: 'pdftotext',
-        extractedAt: new Date().toISOString(),
-        preserveLayout: options.preserveLayout ?? true,
-      },
-      rawText,
-      normalizedText: normalized.text,
-      stats: normalized.stats,
-    };
-    const sections = parseResumeSections(document);
-    const chunks = chunkResumeSections(sections);
-    const structuredData = extractStructuredResumeData({
-      document,
-      sections,
-      chunks,
-    });
-    const artifacts: ResumeRagDocumentArtifacts = {
-      document,
-      sections,
-      chunks,
-      structuredData,
-    };
-
-    if (options.persistArtifacts) {
-      await writeExtractedResumeArtifact(document);
-      await writeResumeSectionArtifacts(artifacts);
-    }
-
-    documents.push(artifacts);
-  }
+  const knownResumesByFileName = new Map(
+    (manifest?.resumes ?? []).map((resume) => [
+      resume.pdfFileName,
+      {
+        candidateId: resume.id,
+        fullName: resume.fullName,
+        primaryRole: resume.primaryRole,
+        documentLanguage: resume.documentLanguage,
+        template: resume.template,
+      } satisfies KnownResumePdfMetadata,
+    ])
+  );
+  const result = await extractResumePdfDirectory(resumeGenerationConfig.rag.sources.pdfDirectory, {
+    datasetId: manifest?.datasetId ?? `local-resume-dataset-${Date.now()}`,
+    candidateIdPrefix: 'resume',
+    knownResumesByFileName,
+    persistArtifacts: options.persistArtifacts,
+    preserveLayout: options.preserveLayout,
+  });
 
   return {
-    datasetId: manifest.datasetId,
-    documents,
-    artifactDirectory: options.persistArtifacts ? EXTRACTED_TEXT_DIRECTORY : null,
+    datasetId: result.datasetId,
+    documents: result.documents,
+    artifactDirectory: result.artifactDirectory,
   };
 }
 
@@ -194,12 +177,12 @@ export async function extractSingleResumePdf(
   const normalized = normalizeExtractedPdfText(rawText);
   const document: ExtractedResumeTextDocument = {
     datasetId: options.datasetId ?? `ad-hoc-resume-${candidateId}`,
-    sourceType: options.datasetId ? 'imported-folder' : 'ad-hoc-file',
+    sourceType: options.sourceType ?? (options.datasetId ? 'imported-folder' : 'ad-hoc-file'),
     candidateId,
     fullName: fallbackFullName,
     primaryRole: options.primaryRole ?? 'Unknown role',
-    documentLanguage: 'unknown',
-    template: 'unknown',
+    documentLanguage: options.documentLanguage ?? 'unknown',
+    template: options.template ?? 'unknown',
     pdfFileName,
     pdfFilePath,
     extraction: {
@@ -253,11 +236,18 @@ export async function extractResumePdfDirectory(
 
   for (const fileName of fileNames) {
     const pdfFilePath = path.join(directoryPath, fileName);
+    const knownResume = options.knownResumesByFileName?.get(fileName);
     const artifact = await extractSingleResumePdf(pdfFilePath, {
       persistArtifacts: options.persistArtifacts,
       preserveLayout: options.preserveLayout,
       datasetId: options.datasetId,
-      candidateIdPrefix: options.candidateIdPrefix,
+      candidateIdPrefix: knownResume ? undefined : options.candidateIdPrefix,
+      candidateId: knownResume?.candidateId,
+      fullName: knownResume?.fullName,
+      primaryRole: knownResume?.primaryRole,
+      documentLanguage: knownResume?.documentLanguage,
+      template: knownResume?.template,
+      sourceType: knownResume ? 'generated-dataset' : 'imported-folder',
     });
     documents.push(artifact);
   }

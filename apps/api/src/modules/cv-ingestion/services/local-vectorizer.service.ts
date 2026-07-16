@@ -2,37 +2,93 @@ const DEFAULT_EMBEDDING_DIMENSIONS = 256;
 
 const STOPWORDS = new Set([
   'a',
+  'alguien',
+  'alguna',
+  'algunas',
+  'alguno',
+  'algunos',
   'an',
   'and',
   'are',
   'as',
   'at',
+  'been',
   'be',
   'by',
+  'candidate',
+  'candidates',
+  'candidato',
+  'candidata',
+  'candidatos',
+  'candidatas',
+  'company',
+  'companies',
   'con',
   'de',
+  'de',
   'del',
+  'do',
+  'does',
   'el',
   'en',
+  'empresa',
+  'empresas',
+  'experience',
+  'experiencia',
+  'es',
   'for',
   'from',
+  'ha',
+  'habla',
+  'hablan',
+  'han',
+  'have',
+  'has',
   'how',
+  'idioma',
+  'idiomas',
   'in',
   'is',
   'la',
   'las',
+  'language',
+  'languages',
+  'llamada',
+  'llamadas',
+  'llamado',
+  'llamados',
+  'list',
+  'lista',
   'los',
   'of',
   'on',
   'or',
   'para',
   'por',
+  'profile',
+  'profiles',
   'que',
+  'someone',
+  'somebody',
   'se',
+  'speak',
+  'speaks',
   'the',
+  'trabajo',
+  'trabaja',
+  'trabajado',
+  'trabajados',
+  'trabajador',
+  'trabajadores',
+  'trabajan',
+  'trabajar',
   'to',
   'un',
   'una',
+  'called',
+  'worked',
+  'working',
+  'works',
   'what',
   'which',
   'who',
@@ -62,10 +118,43 @@ export function normalizeSearchText(value: string): string {
 }
 
 export function tokenizeSearchText(value: string): string[] {
-  return normalizeSearchText(value)
-    .split(' ')
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2 && !STOPWORDS.has(token));
+  const uniqueTokens: string[] = [];
+  const seen = new Set<string>();
+
+  for (const rawToken of normalizeSearchText(value).split(' ')) {
+    const token = rawToken.trim();
+
+    if (!token || STOPWORDS.has(token)) {
+      continue;
+    }
+
+    const variants = new Set<string>([token]);
+
+    if (/[-/]/.test(token)) {
+      for (const part of token.split(/[-/]+/)) {
+        if (part.length >= 2) {
+          variants.add(part);
+        }
+      }
+
+      const collapsed = token.replace(/[-/]+/g, '');
+
+      if (collapsed.length >= 2) {
+        variants.add(collapsed);
+      }
+    }
+
+    for (const variant of variants) {
+      if (variant.length < 2 || STOPWORDS.has(variant) || seen.has(variant)) {
+        continue;
+      }
+
+      seen.add(variant);
+      uniqueTokens.push(variant);
+    }
+  }
+
+  return uniqueTokens;
 }
 
 export function collectTopKeywords(value: string, limit = 8): string[] {

@@ -7,8 +7,7 @@ export interface UiCopy {
   sourceLabel: string;
   statusLabel: string;
   cvCountLabel: string;
-  yourPdfs: string;
-  demoPdfs: string;
+  localPdfs: string;
   noCvs: string;
   readyStatus: string;
   preparingStatus: string;
@@ -42,16 +41,15 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     sourceLabel: 'CV source',
     statusLabel: 'Status',
     cvCountLabel: 'CVs loaded',
-    yourPdfs: 'Your PDFs',
-    demoPdfs: 'Demo PDFs',
+    localPdfs: 'Local PDFs',
     noCvs: 'No CVs found',
     readyStatus: 'Ready',
     preparingStatus: 'Preparing',
     refreshingStatus: 'Refreshing',
     unavailableStatus: 'Unavailable',
-    statusHint: 'Place PDFs in `storage/imported-resumes/pdfs` to use your own CVs.',
+    statusHint: 'Place PDFs in `storage/resumes/pdfs` and reindex to update the chat dataset.',
     refreshButton: 'Refresh CVs',
-    composerPill: 'Ask the dataset',
+    composerPill: 'Ask about the CVs',
     placeholder:
       'Example: Which candidates speak German and have more than 4 years of experience with backend systems?',
     composerHint: 'Press Enter to send. Use Shift+Enter for a new line.',
@@ -69,38 +67,37 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     requestFailed: 'The search could not be completed.',
   },
   es: {
-    eyebrow: 'Buscar CVs',
+    eyebrow: 'Explorar CVs',
     languageLabel: 'Interfaz',
     sidebarDescription:
-      'Haz preguntas sobre los CVs cargados en este momento. La aplicacion usa tus PDFs automaticamente cuando estan disponibles.',
-    sourceLabel: 'Origen',
+      'Haz preguntas sobre los CVs disponibles. La aplicación utiliza tus PDFs automáticamente cuando están disponibles.',
+    sourceLabel: 'Fuente',
     statusLabel: 'Estado',
     cvCountLabel: 'CVs cargados',
-    yourPdfs: 'Tus PDFs',
-    demoPdfs: 'PDFs de demo',
-    noCvs: 'No se han encontrado CVs',
-    readyStatus: 'Lista',
-    preparingStatus: 'Preparando',
-    refreshingStatus: 'Actualizando',
-    unavailableStatus: 'No disponible',
-    statusHint: 'Coloca PDFs en `storage/imported-resumes/pdfs` para usar tus propios CVs.',
-    refreshButton: 'Actualizar CVs',
-    composerPill: 'Pregunta al dataset',
+    localPdfs: 'PDFs locales',
+    noCvs: 'No hay CVs disponibles',
+    readyStatus: 'Listo',
+    preparingStatus: 'Preparando índice',
+    refreshingStatus: 'Actualizando índice',
+    unavailableStatus: 'Sin datos',
+    statusHint: 'Coloca PDFs en `storage/resumes/pdfs` y reindexa para actualizar el conjunto del chat.',
+    refreshButton: 'Reindexar CVs',
+    composerPill: 'Pregunta sobre los CVs',
     placeholder:
-      'Ejemplo: Que candidatos hablan aleman y tienen mas de 4 anos de experiencia en sistemas backend?',
-    composerHint: 'Pulsa Enter para enviar. Usa Shift+Enter para una nueva linea.',
-    askButton: 'Preguntar',
+      'Ejemplo: ¿Qué candidatos hablan alemán y tienen más de 4 años de experiencia en sistemas backend?',
+    composerHint: 'Pulsa Enter para enviar. Usa Shift+Enter para una nueva línea.',
+    askButton: 'Consultar',
     resultPill: 'Respuesta',
-    idleTitle: 'Lista',
-    answerReady: 'Respuesta Lista',
+    idleTitle: 'Listo para buscar',
+    answerReady: 'Respuesta lista',
     working: 'Procesando',
     error: 'Error',
     thinking: 'Pensando...',
-    noQuestionYet: 'Todavia no se ha hecho ninguna pregunta.',
-    topMatches: 'CVs que mejor encajan',
-    sources: 'Fragmentos relevantes',
+    noQuestionYet: 'Todavía no se ha hecho ninguna pregunta.',
+    topMatches: 'Perfiles más afines',
+    sources: 'Fragmentos de apoyo',
     estimatedYears: 'estimados',
-    requestFailed: 'No se pudo completar la busqueda.',
+    requestFailed: 'No se pudo completar la consulta.',
   },
 };
 

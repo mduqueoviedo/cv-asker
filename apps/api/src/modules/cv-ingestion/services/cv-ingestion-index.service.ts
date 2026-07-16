@@ -18,7 +18,6 @@ import {
   normalizeSearchText,
 } from './local-vectorizer.service.js';
 import {
-  extractResumeDatasetText,
   extractResumePdfDirectory,
 } from './resume-pdf-text.service.js';
 
@@ -200,7 +199,38 @@ function estimateExperienceYears(artifacts: ResumeRagDocumentArtifacts): number 
   return roundScore(coveredMonths.size / 12);
 }
 
+function inferPrimaryRole(artifacts: ResumeRagDocumentArtifacts): string {
+  const explicitPrimaryRole = artifacts.document.primaryRole.trim();
+
+  if (explicitPrimaryRole && !/^unknown role$/i.test(explicitPrimaryRole)) {
+    return explicitPrimaryRole;
+  }
+
+  const latestExperienceEntry = artifacts.structuredData.experience
+    .filter(
+      (entry): entry is typeof entry & { role: string } =>
+        typeof entry.role === 'string' && entry.role.trim().length > 0 && !/^unknown role$/i.test(entry.role)
+    )
+    .map((entry) => {
+      const coveredMonths = [...parseDateRangeIntoMonths(entry.dateRange)];
+      const latestMonth = coveredMonths.length > 0 ? Math.max(...coveredMonths) : -1;
+
+      return {
+        role: entry.role.trim(),
+        latestMonth,
+      };
+    })
+    .sort((left, right) => right.latestMonth - left.latestMonth)[0];
+
+  if (latestExperienceEntry) {
+    return latestExperienceEntry.role;
+  }
+
+  return explicitPrimaryRole || 'Unknown role';
+}
+
 function buildCandidateSummary(artifacts: ResumeRagDocumentArtifacts): string {
+  const primaryRole = inferPrimaryRole(artifacts);
   const summarySections = artifacts.sections
     .filter((section) => ['summary', 'highlights', 'profile'].includes(section.kind))
     .map((section) => section.content.trim());
@@ -210,7 +240,7 @@ function buildCandidateSummary(artifacts: ResumeRagDocumentArtifacts): string {
 
   return [
     artifacts.document.fullName,
-    artifacts.document.primaryRole,
+    primaryRole,
     ...summarySections,
     ...education,
   ]
@@ -219,6 +249,7 @@ function buildCandidateSummary(artifacts: ResumeRagDocumentArtifacts): string {
 }
 
 function buildCandidateProfile(artifacts: ResumeRagDocumentArtifacts): ResumeRagCandidateProfile {
+  const primaryRole = inferPrimaryRole(artifacts);
   const skills = uniqueNormalizedValues([
     ...artifacts.structuredData.experience.flatMap((entry) => entry.associatedSkills),
     ...artifacts.sections
@@ -235,13 +266,13 @@ function buildCandidateProfile(artifacts: ResumeRagDocumentArtifacts): ResumeRag
     candidateId: artifacts.document.candidateId,
     datasetId: artifacts.document.datasetId,
     fullName: artifacts.document.fullName,
-    primaryRole: artifacts.document.primaryRole,
+    primaryRole,
     documentLanguage: artifacts.document.documentLanguage,
     pdfFileName: artifacts.document.pdfFileName,
     pdfFilePath: artifacts.document.pdfFilePath,
     totalEstimatedExperienceYears: estimateExperienceYears(artifacts),
     roles: uniqueNormalizedValues([
-      artifacts.document.primaryRole,
+      primaryRole,
       ...artifacts.structuredData.experience.map((entry) => entry.role),
     ]),
     organizations: uniqueNormalizedValues(
@@ -300,23 +331,8 @@ async function ensureIndexDirectory() {
   await mkdir(RAG_INDEX_DIRECTORY, { recursive: true });
 }
 
-async function getGeneratedDatasetSnapshot(): Promise<RagDatasetSnapshot | null> {
-  const manifest = await getResumeDatasetManifest();
-
-  if (!manifest) {
-    return null;
-  }
-
-  return {
-    source: 'generated',
-    datasetId: manifest.datasetId,
-    count: manifest.count,
-    location: manifest.pdfDirectory,
-  };
-}
-
-async function getImportedDatasetSnapshot(): Promise<RagDatasetSnapshot | null> {
-  const directoryPath = resumeGenerationConfig.rag.sources.importedPdfDirectory;
+async function getLocalDatasetSnapshot(): Promise<RagDatasetSnapshot | null> {
+  const directoryPath = resumeGenerationConfig.rag.sources.pdfDirectory;
 
   try {
     const directoryStats = await stat(directoryPath);
@@ -341,8 +357,8 @@ async function getImportedDatasetSnapshot(): Promise<RagDatasetSnapshot | null> 
     }
 
     return {
-      source: 'imported',
-      datasetId: `imported-resume-dataset-${signature.digest('hex').slice(0, 12)}`,
+      source: 'local',
+      datasetId: `local-resume-dataset-${signature.digest('hex').slice(0, 12)}`,
       count: fileNames.length,
       location: directoryPath,
     };
@@ -352,33 +368,19 @@ async function getImportedDatasetSnapshot(): Promise<RagDatasetSnapshot | null> 
 }
 
 async function getRagDatasetSnapshot(
-  source: ResumeRagDatasetSource
+  _source: ResumeRagDatasetSource
 ): Promise<RagDatasetSnapshot | null> {
-  if (source === 'imported') {
-    return getImportedDatasetSnapshot();
-  }
-
-  return getGeneratedDatasetSnapshot();
+  return getLocalDatasetSnapshot();
 }
 
 export async function detectPreferredResumeRagSource(
   source?: ResumeRagDatasetSource
 ): Promise<ResumeRagDatasetSource> {
-  if (source) {
-    return source;
-  }
-
-  const importedSnapshot = await getImportedDatasetSnapshot();
-
-  if (importedSnapshot) {
-    return 'imported';
-  }
-
-  return 'generated';
+  return source ?? 'local';
 }
 
 export async function loadResumeRagIndex(
-  source: ResumeRagDatasetSource = 'generated'
+  source: ResumeRagDatasetSource = 'local'
 ): Promise<ResumeRagIndex | null> {
   try {
     const content = await readFile(resolveIndexFilePath(source), 'utf8');
@@ -395,11 +397,7 @@ export async function buildResumeRagIndex(
   const snapshot = await getRagDatasetSnapshot(source);
 
   if (!snapshot) {
-    throw new Error(
-      source === 'imported'
-        ? `No imported PDF dataset was found at ${resumeGenerationConfig.rag.sources.importedPdfDirectory}.`
-        : 'No generated resume dataset was found on disk.'
-    );
+    throw new Error(`No PDF dataset was found at ${resumeGenerationConfig.rag.sources.pdfDirectory}.`);
   }
 
   const existingIndex = await loadResumeRagIndex(source);
@@ -408,18 +406,26 @@ export async function buildResumeRagIndex(
     return existingIndex;
   }
 
-  const extractionResult =
-    source === 'imported'
-      ? await extractResumePdfDirectory(snapshot.location, {
-          datasetId: snapshot.datasetId,
-          candidateIdPrefix: 'imported',
-          persistArtifacts: true,
-          preserveLayout: true,
-        })
-      : await extractResumeDatasetText({
-          persistArtifacts: true,
-          preserveLayout: true,
-        });
+  const manifest = await getResumeDatasetManifest();
+  const knownResumesByFileName = new Map(
+    (manifest?.resumes ?? []).map((resume) => [
+      resume.pdfFileName,
+      {
+        candidateId: resume.id,
+        fullName: resume.fullName,
+        primaryRole: resume.primaryRole,
+        documentLanguage: resume.documentLanguage,
+        template: resume.template,
+      },
+    ])
+  );
+  const extractionResult = await extractResumePdfDirectory(snapshot.location, {
+    datasetId: snapshot.datasetId,
+    candidateIdPrefix: 'resume',
+    knownResumesByFileName,
+    persistArtifacts: true,
+    preserveLayout: true,
+  });
   const candidates = extractionResult.documents.map((artifact) => buildCandidateProfile(artifact));
   const candidateById = new Map(candidates.map((candidate) => [candidate.candidateId, candidate]));
   const chunks = extractionResult.documents.flatMap((artifact) =>
@@ -453,11 +459,7 @@ export async function ensureResumeRagIndex(
   const snapshot = await getRagDatasetSnapshot(source);
 
   if (!snapshot) {
-    throw new Error(
-      source === 'imported'
-        ? `No imported PDF dataset was found at ${resumeGenerationConfig.rag.sources.importedPdfDirectory}.`
-        : 'No generated resume dataset was found on disk.'
-    );
+    throw new Error(`No PDF dataset was found at ${resumeGenerationConfig.rag.sources.pdfDirectory}.`);
   }
 
   const existingIndex = await loadResumeRagIndex(source);
@@ -496,6 +498,6 @@ export async function getResumeRagStatus(source?: ResumeRagDatasetSource) {
     chunkCount: index?.chunkCount ?? 0,
     stale: Boolean(snapshot && index && snapshot.datasetId !== index.datasetId),
     indexFilePath: resolveIndexFilePath(resolvedSource),
-    importedPdfDirectory: resumeGenerationConfig.rag.sources.importedPdfDirectory,
+    pdfDirectory: resumeGenerationConfig.rag.sources.pdfDirectory,
   };
 }

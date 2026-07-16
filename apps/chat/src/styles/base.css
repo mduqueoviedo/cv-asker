@@ -5,9 +5,10 @@
 html {
   color: var(--ink);
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.76), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(30, 93, 114, 0.14), transparent 26%),
-    linear-gradient(135deg, var(--bg) 0%, #ece4d7 42%, var(--bg-deep) 100%);
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 28%),
+    radial-gradient(circle at 85% 18%, rgba(37, 99, 235, 0.18), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(96, 165, 250, 0.2), transparent 30%),
+    linear-gradient(145deg, var(--bg) 0%, #f4f8ff 40%, var(--bg-deep) 100%);
 }
 
 body {

@@ -1,5 +1,5 @@
 export interface IngestionStatus {
-  source?: 'generated' | 'imported';
+  source?: 'local';
   hasDataset?: boolean;
   indexBuilt?: boolean;
   candidateCount?: number;
@@ -26,6 +26,7 @@ export interface CandidateMatch {
 
 export interface ChatAnswerResult {
   answer: string;
+  showMatches: boolean;
   matches: CandidateMatch[];
   citations: Citation[];
 }
