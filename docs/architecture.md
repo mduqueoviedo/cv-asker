@@ -44,6 +44,49 @@ flowchart LR
     C -. PDF source of truth .-> J
 ```
 
+## Technical Architecture Diagram
+
+Static SVG version:
+
+- `docs/technical-architecture-diagram.svg`
+
+```mermaid
+flowchart TB
+    U[User]
+
+    subgraph SURFACE[Product Surface]
+        FE[Chat UI<br/>apps/chat<br/>Vite plus Vanilla TypeScript]
+    end
+
+    subgraph APP[Application Core]
+        API[Express API<br/>apps/api]
+        CHAT[chat module]
+        GEN[cv-generation module]
+        INGEST[cv-ingestion module]
+        API --> CHAT
+        API --> GEN
+        API --> INGEST
+    end
+
+    subgraph SUPPORT[Supporting Systems]
+        PDFS[(storage/resumes/pdfs)]
+        RAG[(storage/rag/index)]
+        PUP[Puppeteer plus Chromium]
+        PDFTEXT[pdftotext]
+        OR[OpenRouter]
+    end
+
+    U --> FE --> API
+    GEN --> PUP
+    GEN --> PDFS
+    GEN --> OR
+    PDFS --> INGEST
+    INGEST --> PDFTEXT
+    INGEST --> RAG
+    CHAT --> RAG
+    CHAT --> OR
+```
+
 ## Repository Structure
 
 The project is still one deployable system, but it is organized as a modular monolith.

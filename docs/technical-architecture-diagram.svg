@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1020" viewBox="0 0 1600 1020" role="img" aria-labelledby="title desc">
+  <title id="title">CV Asker technical architecture</title>
+  <desc id="desc">Layered technical architecture diagram showing the user surface, application core, and supporting systems.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8f5ee"/>
+      <stop offset="100%" stop-color="#edf4f8"/>
+    </linearGradient>
+    <linearGradient id="surfacePanel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff1dc"/>
+      <stop offset="100%" stop-color="#ffe1bc"/>
+    </linearGradient>
+    <linearGradient id="corePanel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ecf5ff"/>
+      <stop offset="100%" stop-color="#d7e9ff"/>
+    </linearGradient>
+    <linearGradient id="supportPanel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#eef9f1"/>
+      <stop offset="100%" stop-color="#daf0e0"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#35536b"/>
+    </marker>
+    <style>
+      .title { font: 700 34px "Aptos", "Segoe UI", Arial, sans-serif; fill: #1d2a36; }
+      .subtitle { font: 500 16px "Aptos", "Segoe UI", Arial, sans-serif; fill: #576575; }
+      .layer-title { font: 700 22px "Aptos", "Segoe UI", Arial, sans-serif; fill: #223142; }
+      .layer-copy { font: 500 13px "Aptos", "Segoe UI", Arial, sans-serif; fill: #5e6c7b; }
+      .node-title { font: 700 16px "Aptos", "Segoe UI", Arial, sans-serif; fill: #1f2a37; }
+      .node-copy { font: 500 12px "Aptos", "Segoe UI", Arial, sans-serif; fill: #596676; }
+      .node { fill: #ffffff; stroke: #d6dee7; stroke-width: 1.5; }
+      .layer { stroke: rgba(53, 83, 107, 0.14); stroke-width: 1.5; }
+      .arrow { stroke: #35536b; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .shadow { filter: drop-shadow(0 12px 24px rgba(31, 42, 55, 0.08)); }
+      .label { font: 600 12px "Aptos", "Segoe UI", Arial, sans-serif; fill: #35536b; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1020" rx="28" fill="url(#bg)"/>
+
+  <text x="72" y="74" class="title">CV Asker Technical Architecture</text>
+  <text x="72" y="104" class="subtitle">A layered view of the browser surface, Express backend, domain modules, and the local plus external systems they depend on.</text>
+
+  <g class="shadow">
+    <rect x="56" y="150" width="1488" height="170" rx="30" fill="url(#surfacePanel)" class="layer"/>
+    <rect x="56" y="352" width="1488" height="250" rx="30" fill="url(#corePanel)" class="layer"/>
+    <rect x="56" y="634" width="1488" height="330" rx="30" fill="url(#supportPanel)" class="layer"/>
+  </g>
+
+  <text x="88" y="192" class="layer-title">1. Product Surface</text>
+  <text x="88" y="216" class="layer-copy">
+    <tspan x="88" dy="0">The user interacts with a single local web UI that talks to the backend API.</tspan>
+  </text>
+
+  <text x="88" y="394" class="layer-title">2. Application Core</text>
+  <text x="88" y="418" class="layer-copy">
+    <tspan x="88" dy="0">A modular Express application routes requests into focused domain modules.</tspan>
+  </text>
+
+  <text x="88" y="676" class="layer-title">3. Supporting Systems</text>
+  <text x="88" y="700" class="layer-copy">
+    <tspan x="88" dy="0">The modules rely on local storage, local system tools, and external AI services.</tspan>
+  </text>
+
+  <g class="shadow">
+    <rect x="290" y="220" width="220" height="56" rx="18" class="node"/>
+    <text x="377" y="255" class="node-title">User</text>
+
+    <rect x="620" y="196" width="390" height="104" rx="24" class="node"/>
+    <text x="646" y="232" class="node-title">Chat UI</text>
+    <text x="646" y="256" class="node-copy">
+      <tspan x="646" dy="0">`apps/chat` built with Vite and Vanilla</tspan>
+      <tspan x="646" dy="18">TypeScript, served as one local product.</tspan>
+    </text>
+  </g>
+
+  <g class="shadow">
+    <rect x="360" y="442" width="880" height="138" rx="24" class="node"/>
+    <text x="386" y="478" class="node-title">Express API</text>
+    <text x="386" y="502" class="node-copy">
+      <tspan x="386" dy="0">`apps/api` exposes the main endpoints and coordinates the domain modules below.</tspan>
+    </text>
+
+    <rect x="390" y="526" width="226" height="34" rx="17" class="node"/>
+    <text x="438" y="548" class="node-copy">`cv-generation` module</text>
+
+    <rect x="687" y="526" width="226" height="34" rx="17" class="node"/>
+    <text x="735" y="548" class="node-copy">`cv-ingestion` module</text>
+
+    <rect x="984" y="526" width="226" height="34" rx="17" class="node"/>
+    <text x="1064" y="548" class="node-copy">`chat` module</text>
+  </g>
+
+  <g class="shadow">
+    <rect x="128" y="782" width="280" height="86" rx="22" class="node"/>
+    <text x="154" y="818" class="node-title">Puppeteer plus Chromium</text>
+    <text x="154" y="842" class="node-copy">HTML resume rendering to PDF.</text>
+
+    <rect x="438" y="782" width="280" height="86" rx="22" class="node"/>
+    <text x="464" y="818" class="node-title">Resume PDFs</text>
+    <text x="464" y="842" class="node-copy">`storage/resumes/pdfs` dataset.</text>
+
+    <rect x="748" y="782" width="280" height="86" rx="22" class="node"/>
+    <text x="774" y="818" class="node-title">pdftotext</text>
+    <text x="774" y="842" class="node-copy">PDF text extraction for ingestion.</text>
+
+    <rect x="1058" y="782" width="280" height="86" rx="22" class="node"/>
+    <text x="1084" y="818" class="node-title">Local RAG Index</text>
+    <text x="1084" y="842" class="node-copy">`storage/rag/index` artifacts.</text>
+
+    <rect x="1328" y="782" width="180" height="86" rx="22" class="node"/>
+    <text x="1354" y="818" class="node-title">OpenRouter</text>
+    <text x="1354" y="842" class="node-copy">Text and image model calls.</text>
+  </g>
+
+  <path d="M 510 248 L 620 248" class="arrow"/>
+  <path d="M 815 300 L 815 442" class="arrow"/>
+
+  <path d="M 503 560 L 268 782" class="arrow"/>
+  <path d="M 503 560 L 578 782" class="arrow"/>
+  <path d="M 503 560 L 1418 782" class="arrow"/>
+
+  <path d="M 800 560 L 888 782" class="arrow"/>
+  <path d="M 800 560 L 1198 782" class="arrow"/>
+
+  <path d="M 1097 560 L 1198 782" class="arrow"/>
+  <path d="M 1097 560 L 1418 782" class="arrow"/>
+
+  <path d="M 578 782 L 800 560" class="arrow"/>
+  <text x="618" y="668" class="label">PDF source for ingestion</text>
+</svg>
