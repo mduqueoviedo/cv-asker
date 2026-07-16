@@ -15,17 +15,17 @@ CV Asker is a local-first full-stack recruitment prototype. The project combines
 - The backend runs on Express + TypeScript with ESM and `NodeNext`.
 - Local resume dataset generation is implemented.
 - PDF extraction, normalization, section parsing, chunking, and structured inference are implemented.
-- Hybrid retrieval and grounded chat are being completed on top of the parsed PDF artifacts.
+- A local hybrid RAG flow is implemented end to end, including indexing, retrieval, grounded answers, and a lightweight chat surface at `/chat`.
 
 ## End-to-End Project Map
 
 1. Resume dataset generation: implemented
 2. PDF text extraction and normalization: implemented
 3. Section parsing and chunking from parsed PDF text: implemented
-4. Embedding generation and local vector storage: `WIP`
-5. Hybrid retrieval with semantic search plus structured filters: `WIP`
-6. Answer generation grounded on retrieved CV evidence: `WIP`
-7. Frontend chat experience with source attribution: `WIP`
+4. Local embedding generation and vector-style storage: implemented
+5. Hybrid retrieval with semantic search plus structured filters: implemented
+6. Answer generation grounded on retrieved CV evidence: implemented
+7. Lightweight chat experience with source attribution: implemented
 
 ## Backend Capabilities
 
@@ -50,9 +50,9 @@ Resume generation API
   -> persist artifacts locally
   -> extract PDF text directly from the generated resumes
   -> parse sections and generate chunks from normalized PDF text
-  -> WIP: generate embeddings and store vectors
-  -> WIP: run hybrid retrieval for user questions
-  -> WIP: answer in chat with source attribution
+  -> build a local hashed-vector index with structured candidate facets
+  -> run hybrid retrieval for user questions
+  -> answer in chat with source attribution
 ```
 
 ## Extraction Heuristics
@@ -71,6 +71,8 @@ Resume generation API
 - `pnpm generate`: Run resume generation using the defaults defined in `src/config/resume-generation.ts`.
 - `pnpm extract:text`: Extract and normalize text from the generated PDFs into `storage/rag/extracted-text/`.
 - `pnpm extract:text:file -- <pdf-path>`: Validate extraction, section parsing, and chunking against any local CV PDF.
+- `pnpm rag:index`: Build or rebuild the local RAG index from the generated PDFs.
+- `pnpm rag:ask -- "<question>"`: Run a local RAG query from the terminal.
 - `pnpm generate -- --count 12 --language en --mode append`: Override any default for a specific run without touching `.env`.
 
 The backend starts on `http://localhost:3000` by default.
@@ -78,8 +80,12 @@ The backend starts on `http://localhost:3000` by default.
 ## API Endpoints
 
 - `GET /`: Basic service status payload.
+- `GET /chat`: Lightweight local chat UI for the resume dataset.
 - `GET /api/resumes`: Inspect whether a generated resume dataset already exists on disk.
 - `POST /api/resumes/generate`: Generate a fresh batch of fake resumes as PDFs.
+- `GET /api/rag/status`: Inspect dataset/index readiness for the RAG flow.
+- `POST /api/rag/index`: Build or rebuild the local RAG index.
+- `POST /api/rag/ask`: Ask a grounded question against the ingested resumes.
 
 ## Module Status
 
@@ -96,9 +102,12 @@ The backend starts on `http://localhost:3000` by default.
 - `src/services/rag/resume-pdf-text.service.ts`: implemented
 - `src/services/rag/resume-section-parser.service.ts`: implemented
 - `src/services/rag/resume-chunker.service.ts`: implemented
-- Retrieval services: `WIP`
-- Chat orchestration: `WIP`
-- Frontend application: `WIP`
+- `src/services/rag/rag-index.service.ts`: implemented
+- `src/services/rag/rag-retrieval.service.ts`: implemented
+- `src/services/rag/rag-answer.service.ts`: implemented
+- Retrieval services: implemented
+- Chat orchestration: implemented
+- Frontend application: lightweight local implementation available
 
 ## Resume Generation Notes
 
@@ -126,6 +135,6 @@ Copy `.env.example` into `.env`. `OPENROUTER_API_KEY` is required because CV gen
 
 ## Next Planned Steps
 
-- Finish the local vector index, hybrid retrieval, and grounded answer layer on top of the parsed PDF artifacts.
-- Expose the shortest end-to-end local flow possible for asking questions against the generated CV set.
-- Add a lightweight chat UI for the final demonstration.
+- Improve retrieval quality for more heavily stylized or noisy third-party CV PDFs.
+- Tighten structured extraction for non-standard education and certification layouts.
+- Refine the lightweight chat UI for the final demonstration.

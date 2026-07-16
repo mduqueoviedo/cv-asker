@@ -142,3 +142,103 @@ export interface ResumeRagDocumentArtifacts {
   chunks: ResumeTextChunk[];
   structuredData: StructuredResumeData;
 }
+
+export interface ResumeRagCandidateProfile {
+  candidateId: string;
+  datasetId: string;
+  fullName: string;
+  primaryRole: string;
+  documentLanguage: ParsedResumeDocumentLanguage;
+  pdfFileName: string;
+  pdfFilePath: string;
+  totalEstimatedExperienceYears: number;
+  roles: string[];
+  organizations: string[];
+  skills: string[];
+  languages: string[];
+  education: string[];
+  certifications: string[];
+  summary: string;
+}
+
+export interface ResumeRagIndexedChunk {
+  id: string;
+  datasetId: string;
+  candidateId: string;
+  fullName: string;
+  primaryRole: string;
+  pdfFileName: string;
+  pdfFilePath: string;
+  sectionId: string;
+  sectionKind: ResumeSectionKind;
+  sectionLabel: string;
+  order: number;
+  text: string;
+  keywords: string[];
+  embedding: number[];
+  characterCount: number;
+  wordCount: number;
+}
+
+export interface ResumeRagIndex {
+  datasetId: string;
+  builtAt: string;
+  embeddingDimensions: number;
+  documentCount: number;
+  candidateCount: number;
+  chunkCount: number;
+  candidates: ResumeRagCandidateProfile[];
+  chunks: ResumeRagIndexedChunk[];
+}
+
+export type ResumeRagAnswerIntent = 'list' | 'count' | 'summary';
+
+export interface ResumeRagQueryFilters {
+  languages: string[];
+  minExperienceYears: number | null;
+}
+
+export interface ResumeRagQueryAnalysis {
+  originalQuestion: string;
+  normalizedQuestion: string;
+  intent: ResumeRagAnswerIntent;
+  topK: number;
+  searchTerms: string[];
+  filters: ResumeRagQueryFilters;
+}
+
+export interface ResumeRagCitation {
+  chunkId: string;
+  candidateId: string;
+  fullName: string;
+  primaryRole: string;
+  pdfFileName: string;
+  pdfFilePath: string;
+  sectionKind: ResumeSectionKind;
+  excerpt: string;
+  score: number;
+}
+
+export interface ResumeRagCandidateMatch {
+  candidateId: string;
+  fullName: string;
+  primaryRole: string;
+  pdfFileName: string;
+  pdfFilePath: string;
+  score: number;
+  totalEstimatedExperienceYears: number;
+  languages: string[];
+  skills: string[];
+  citations: ResumeRagCitation[];
+}
+
+export interface ResumeRagAnswerResult {
+  datasetId: string;
+  builtAt: string;
+  question: string;
+  answer: string;
+  analysis: ResumeRagQueryAnalysis;
+  citations: ResumeRagCitation[];
+  matches: ResumeRagCandidateMatch[];
+  model: string | null;
+}

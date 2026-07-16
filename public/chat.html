@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CV Asker</title>
+    <style>
+      :root {
+        --bg: #f4ede3;
+        --panel: rgba(255, 252, 247, 0.84);
+        --panel-strong: rgba(255, 252, 247, 0.96);
+        --ink: #18212b;
+        --muted: #6b7683;
+        --accent: #8f4f2a;
+        --accent-soft: #e6c8b1;
+        --line: rgba(24, 33, 43, 0.12);
+        --shadow: 0 22px 50px rgba(38, 27, 15, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Aptos", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 28%),
+          linear-gradient(135deg, #efe1d0 0%, var(--bg) 50%, #e8dccb 100%);
+      }
+
+      .shell {
+        width: min(1100px, calc(100% - 32px));
+        margin: 24px auto;
+        display: grid;
+        grid-template-columns: 320px minmax(0, 1fr);
+        gap: 18px;
+      }
+
+      .card {
+        background: var(--panel);
+        backdrop-filter: blur(14px);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+      }
+
+      .sidebar {
+        padding: 22px;
+      }
+
+      .sidebar h1 {
+        margin: 0;
+        font-family: "Iowan Old Style", Georgia, serif;
+        font-size: 34px;
+        line-height: 1;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--accent);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .sidebar p {
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .status {
+        margin-top: 18px;
+        padding: 16px;
+        border-radius: 18px;
+        background: var(--panel-strong);
+        border: 1px solid var(--line);
+      }
+
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 14px;
+        padding: 6px 0;
+      }
+
+      .status-row span:first-child {
+        color: var(--muted);
+      }
+
+      .workspace {
+        padding: 20px;
+        display: grid;
+        gap: 16px;
+      }
+
+      .composer {
+        padding: 18px;
+        border-radius: 22px;
+        background: var(--panel-strong);
+        border: 1px solid var(--line);
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 110px;
+        resize: vertical;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--ink);
+        font: inherit;
+        line-height: 1.5;
+      }
+
+      .actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      button {
+        border: 0;
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 12px 18px;
+        font: inherit;
+        font-weight: 700;
+      }
+
+      .primary {
+        background: linear-gradient(135deg, var(--accent), #b06d45);
+        color: white;
+      }
+
+      .secondary {
+        background: white;
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+
+      .result {
+        padding: 22px;
+      }
+
+      .result h2 {
+        margin: 0 0 12px;
+        font-family: "Iowan Old Style", Georgia, serif;
+        font-size: 28px;
+      }
+
+      .answer {
+        white-space: pre-wrap;
+        line-height: 1.65;
+      }
+
+      .matches,
+      .citations {
+        display: grid;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .match,
+      .citation {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--panel-strong);
+      }
+
+      .meta {
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 4px;
+      }
+
+      .empty {
+        color: var(--muted);
+        font-style: italic;
+      }
+
+      @media (max-width: 920px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="card sidebar">
+        <p class="eyebrow">PDF-Only RAG</p>
+        <h1>CV Asker</h1>
+        <p>
+          Ask questions about the generated resume dataset. The backend will build or refresh the
+          local index automatically when needed.
+        </p>
+        <div class="status" id="statusPanel">
+          <div class="status-row"><span>Dataset</span><strong id="datasetState">Loading...</strong></div>
+          <div class="status-row"><span>Index</span><strong id="indexState">Loading...</strong></div>
+          <div class="status-row"><span>Candidates</span><strong id="candidateCount">-</strong></div>
+          <div class="status-row"><span>Chunks</span><strong id="chunkCount">-</strong></div>
+        </div>
+      </aside>
+
+      <main class="card workspace">
+        <section class="composer">
+          <textarea id="questionInput" placeholder="Example: Which candidates speak German and have more than 4 years of experience with backend systems?"></textarea>
+          <div class="actions">
+            <div class="hint">Single flow: generate resumes, open `/chat`, ask a question.</div>
+            <div>
+              <button class="secondary" id="reindexButton" type="button">Rebuild Index</button>
+              <button class="primary" id="askButton" type="button">Ask</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="result">
+          <span class="pill">Grounded Answer</span>
+          <h2 id="resultTitle">Ready</h2>
+          <div class="answer empty" id="answerOutput">No question asked yet.</div>
+
+          <div class="matches" id="matches"></div>
+          <div class="citations" id="citations"></div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const statusNodes = {
+        datasetState: document.getElementById('datasetState'),
+        indexState: document.getElementById('indexState'),
+        candidateCount: document.getElementById('candidateCount'),
+        chunkCount: document.getElementById('chunkCount'),
+      };
+      const questionInput = document.getElementById('questionInput');
+      const askButton = document.getElementById('askButton');
+      const reindexButton = document.getElementById('reindexButton');
+      const resultTitle = document.getElementById('resultTitle');
+      const answerOutput = document.getElementById('answerOutput');
+      const matchesNode = document.getElementById('matches');
+      const citationsNode = document.getElementById('citations');
+
+      async function loadStatus() {
+        const response = await fetch('/api/rag/status');
+        const payload = await response.json();
+        const status = payload.success ? payload : {};
+
+        statusNodes.datasetState.textContent = status.hasDataset ? status.datasetId : 'Missing';
+        statusNodes.indexState.textContent = status.indexBuilt ? 'Ready' : 'Not built';
+        statusNodes.candidateCount.textContent = String(status.candidateCount ?? 0);
+        statusNodes.chunkCount.textContent = String(status.chunkCount ?? 0);
+      }
+
+      function renderMatches(matches) {
+        matchesNode.innerHTML = '';
+
+        if (!matches.length) {
+          return;
+        }
+
+        const title = document.createElement('div');
+        title.className = 'pill';
+        title.textContent = 'Top Matches';
+        matchesNode.appendChild(title);
+
+        for (const match of matches) {
+          const node = document.createElement('div');
+          node.className = 'match';
+          node.innerHTML = `
+            <strong>${match.fullName}</strong>
+            <div class="meta">${match.primaryRole} · ${match.totalEstimatedExperienceYears}y estimated · score ${match.score}</div>
+            <div class="meta">${(match.languages || []).join(', ')}</div>
+          `;
+          matchesNode.appendChild(node);
+        }
+      }
+
+      function renderCitations(citations) {
+        citationsNode.innerHTML = '';
+
+        if (!citations.length) {
+          return;
+        }
+
+        const title = document.createElement('div');
+        title.className = 'pill';
+        title.textContent = 'Sources';
+        citationsNode.appendChild(title);
+
+        for (const citation of citations) {
+          const node = document.createElement('div');
+          node.className = 'citation';
+          node.innerHTML = `
+            <strong>${citation.fullName}</strong>
+            <div class="meta">${citation.sectionKind} · ${citation.pdfFileName} · score ${citation.score}</div>
+            <div class="meta">${citation.excerpt}</div>
+          `;
+          citationsNode.appendChild(node);
+        }
+      }
+
+      async function askQuestion(forceRebuild = false) {
+        const question = questionInput.value.trim();
+
+        if (!question) {
+          return;
+        }
+
+        askButton.disabled = true;
+        answerOutput.textContent = 'Thinking...';
+        answerOutput.classList.remove('empty');
+        resultTitle.textContent = 'Working';
+
+        try {
+          const response = await fetch('/api/rag/ask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question, forceRebuild }),
+          });
+          const payload = await response.json();
+
+          if (!payload.success) {
+            throw new Error(payload.error || 'The RAG request failed.');
+          }
+
+          const { result } = payload;
+          resultTitle.textContent = result.model ? `Answered with ${result.model}` : 'Answered locally';
+          answerOutput.textContent = result.answer;
+          renderMatches(result.matches || []);
+          renderCitations(result.citations || []);
+          await loadStatus();
+        } catch (error) {
+          resultTitle.textContent = 'Error';
+          answerOutput.textContent = error instanceof Error ? error.message : String(error);
+        } finally {
+          askButton.disabled = false;
+        }
+      }
+
+      askButton.addEventListener('click', () => askQuestion(false));
+      reindexButton.addEventListener('click', async () => {
+        reindexButton.disabled = true;
+
+        try {
+          await fetch('/api/rag/index', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ forceRebuild: true }),
+          });
+          await loadStatus();
+        } finally {
+          reindexButton.disabled = false;
+        }
+      });
+
+      questionInput.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+          askQuestion(false);
+        }
+      });
+
+      loadStatus().catch(() => {
+        statusNodes.datasetState.textContent = 'Unavailable';
+        statusNodes.indexState.textContent = 'Unavailable';
+      });
+    </script>
+  </body>
+</html>
