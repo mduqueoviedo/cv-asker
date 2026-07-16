@@ -49,10 +49,18 @@ export function renderMatches(
     return;
   }
 
-  container.appendChild(createElement('div', 'pill', copy.topMatches));
+  const summary = createElement('div', 'matches-summary');
+  summary.append(
+    createElement('div', 'pill', copy.topMatches),
+    createElement('div', 'matches-count', copy.matchesCount(matches.length))
+  );
+  container.appendChild(summary);
 
   for (const match of matches) {
-    const card = createElement('article', 'match');
+    const card =
+      match.resumeUrl
+        ? createElement('a', 'match match-link')
+        : createElement('article', 'match');
     const title = createElement('strong', undefined, match.fullName);
     const role = createElement(
       'div',
@@ -67,8 +75,16 @@ export function renderMatches(
       'meta',
       match.languages.length > 0 ? match.languages.join(', ') : '—'
     );
+    const openLine = createElement('div', 'meta match-cta', copy.openCv);
 
-    card.append(title, role, languagesLine);
+    if (card instanceof HTMLAnchorElement && match.resumeUrl) {
+      card.href = match.resumeUrl;
+      card.target = '_blank';
+      card.rel = 'noopener noreferrer';
+      card.title = copy.openCv;
+    }
+
+    card.append(title, role, languagesLine, openLine);
     container.appendChild(card);
   }
 }

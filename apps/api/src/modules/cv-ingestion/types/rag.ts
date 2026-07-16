@@ -199,6 +199,7 @@ export type ResumeRagQueryKind =
   | 'organization_lookup'
   | 'skill_lookup'
   | 'keyword_lookup';
+export type ResumeRagResultScope = 'matching' | 'catalog';
 export type ResumeRagConceptKind = 'technology' | 'domain' | 'role';
 
 export interface ResumeRagQueryConcepts {
@@ -217,7 +218,8 @@ export interface ResumeRagQueryAnalysis {
   normalizedQuestion: string;
   intent: ResumeRagAnswerIntent;
   queryKind: ResumeRagQueryKind;
-  topK: number;
+  resultScope: ResumeRagResultScope;
+  topK: number | null;
   searchTerms: string[];
   concepts: ResumeRagQueryConcepts;
   filters: ResumeRagQueryFilters;

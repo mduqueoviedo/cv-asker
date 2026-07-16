@@ -21,6 +21,7 @@ export interface CandidateMatch {
   totalEstimatedExperienceYears: number;
   languages: string[];
   skills: string[];
+  resumeUrl?: string;
   citations: Citation[];
 }
 
