@@ -1,9 +1,9 @@
 import { runSmokeSuite } from './smoke-suite.shared.js';
 
 runSmokeSuite({
-  includeHttp: false,
-  includeAi: false,
-  modeLabel: 'basic',
+  includeHttp: true,
+  includeAi: true,
+  modeLabel: 'costly',
 }).catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`[Smoke Suite] Failed: ${message}`);

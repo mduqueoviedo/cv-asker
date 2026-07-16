@@ -80,9 +80,7 @@ The smoke tests live in:
 The main entry points are:
 
 - `pnpm test:smoke`
-- `pnpm test:smoke:http`
-- `pnpm test:smoke:ai`
-- `pnpm test:smoke:full`
+- `pnpm test:smoke:costly`
 
 The default baseline is `pnpm test:smoke`.
 
@@ -90,6 +88,10 @@ That baseline is intentionally conservative:
 
 - it avoids the HTTP smoke by default because opening a local port depends on the environment
 - it avoids the AI smoke by default because that may call the configured external LLM provider
+
+The heavier suite is `pnpm test:smoke:costly`.
+
+That one is intended for higher-confidence checks when you explicitly want to exercise the local HTTP layer and a real AI-backed ask.
 
 This keeps the default validation loop fast, local-first, and easier to explain in demos or reviews.
 

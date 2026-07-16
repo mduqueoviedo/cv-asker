@@ -16,7 +16,7 @@ function parseArguments(argv: string[]) {
   const pdfFilePath = normalizedArgv[0];
 
   if (!pdfFilePath) {
-    throw new Error('Usage: pnpm smoke:extract:file -- <pdf-file-path>');
+    throw new Error('Usage: node --import tsx <script> -- <pdf-file-path>');
   }
 
   return {
