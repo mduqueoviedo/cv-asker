@@ -77,26 +77,26 @@ const LOCALIZED_COPY: Record<ChatLanguage, LocalizedCopy> = {
   },
   es: {
     unknown: 'Desconocido',
-    answerTitle: 'Respuesta Lista',
+    answerTitle: 'Respuesta lista',
     workingTitle: 'Procesando',
     errorTitle: 'Error',
     thinking: 'Pensando...',
     noQuestionYet: 'Todavía no se ha hecho ninguna pregunta.',
-    topMatchesLabel: 'Mejores Perfiles',
-    sourcesLabel: 'Fuentes',
+    topMatchesLabel: 'Perfiles más afines',
+    sourcesLabel: 'Fragmentos de apoyo',
     candidateLabel: 'Candidato',
     roleLabel: 'Rol',
-    experienceLabel: 'Años estimados de experiencia',
+    experienceLabel: 'Experiencia estimada',
     languagesLabel: 'Idiomas',
-    skillsLabel: 'Competencias',
+    skillsLabel: 'Habilidades',
     citationLabel: 'Cita',
     noMatches: (question) =>
-      `No he encontrado coincidencias claras para "${question}" en el conjunto actual de CVs.`,
-    topMatches: (question) => `Mejores coincidencias para "${question}":`,
+      `No he encontrado perfiles claramente relevantes para "${question}" en el conjunto actual de CVs.`,
+    topMatches: (question) => `Perfiles más afines para "${question}":`,
     rankingNote:
-      'Estos resultados se han generado a partir del contenido extraído de los PDF y se han ordenado con recuperación híbrida.',
+      'Estos resultados se han generado a partir del contenido extraído de los PDF y se han ordenado mediante recuperación híbrida.',
     answerInstruction:
-      'Responde en español. Si la evidencia no es suficiente, indícalo con claridad.',
+      'Responde en español. Si la evidencia no basta, dilo con claridad.',
   },
 };
 
@@ -147,8 +147,12 @@ function createFallbackAnswer(
   const lines = matches.slice(0, 3).map((match, index) => {
     const topCitation = match.citations[0];
     const citationLabel = topCitation ? `[${topCitation.candidateId}:${topCitation.chunkId}]` : '';
+    const experienceLabel =
+      language === 'es'
+        ? `${match.totalEstimatedExperienceYears} años estimados`
+        : `${match.totalEstimatedExperienceYears} estimated years`;
 
-    return `${index + 1}. ${match.fullName} - ${match.primaryRole} (${match.totalEstimatedExperienceYears}y est.) ${citationLabel}`.trim();
+    return `${index + 1}. ${match.fullName} - ${match.primaryRole} (${experienceLabel}) ${citationLabel}`.trim();
   });
 
   const summary = [copy.topMatches(question), ...lines];

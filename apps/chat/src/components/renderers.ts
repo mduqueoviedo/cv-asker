@@ -19,6 +19,14 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
   return element;
 }
 
+function formatEstimatedExperience(years: number, language: UiLanguage): string {
+  if (language === 'es') {
+    return `${years} años estimados`;
+  }
+
+  return `${years} estimated years`;
+}
+
 export function renderMatches(
   container: HTMLElement,
   matches: CandidateMatch[],
@@ -39,7 +47,10 @@ export function renderMatches(
     const role = createElement(
       'div',
       'meta',
-      `${match.primaryRole} · ${match.totalEstimatedExperienceYears}y ${copy.estimatedYears}`
+      `${match.primaryRole} · ${formatEstimatedExperience(
+        match.totalEstimatedExperienceYears,
+        language
+      )}`
     );
     const languagesLine = createElement(
       'div',
