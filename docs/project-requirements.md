@@ -2,6 +2,13 @@
 
 Consolidated from the original business case PDF and the project architecture instructions agreed for this repository.
 
+Important source-of-truth rule:
+- The original company requirements PDF is kept locally at `.local/requirements/ai-full-stack-developer-business-case.pdf`.
+- That file is intentionally excluded from git tracking.
+- `docs/project-requirements.md` is the repository-safe summary used for implementation notes.
+- The RAG ingestion pipeline must read and parse the generated PDF resumes directly.
+- Derived JSON resume metadata must not be used as an ingestion input.
+
 ## 1. Product Goal
 
 Build an AI-powered CV screener that allows a user to ask natural-language questions about a locally generated dataset of fake resumes and receive grounded answers with source attribution.
@@ -24,8 +31,9 @@ Build an AI-powered CV screener that allows a user to ask natural-language quest
 ### 3.2 Hybrid RAG Requirements
 
 - The system must extract and normalize text from all generated PDF resumes.
+- PDF files are the only ingestion input for the RAG pipeline.
 - Text must be chunked and stored in an embedded vector storage layer suitable for local development.
-- Each chunk must preserve source-document references and structured candidate metadata.
+- Each chunk must preserve source-document references and any structured candidate metadata inferred from the parsed PDF content.
 - Retrieval must support both semantic similarity search and rigid quantitative filtering.
 - LLM answers should be grounded in resume data only whenever feasible.
 

@@ -8,7 +8,11 @@
     "copy:resume-assets": "node ./scripts/copy-resume-assets.mjs",
     "dev": "node ./scripts/build-resume-styles.mjs && tsx watch src/index.ts",
     "build": "node ./scripts/build-resume-styles.mjs && tsc && node ./scripts/copy-resume-assets.mjs",
-    "generate": "node ./scripts/build-resume-styles.mjs && tsx src/scripts/smoke-generate-resumes.ts"
+    "generate": "node ./scripts/build-resume-styles.mjs && tsx src/scripts/smoke-generate-resumes.ts",
+    "extract:text": "node --import tsx src/scripts/smoke-extract-resume-text.ts",
+    "extract:text:file": "node --import tsx src/scripts/smoke-extract-resume-file.ts",
+    "rag:index": "node --import tsx src/scripts/smoke-build-rag-index.ts",
+    "rag:ask": "node --import tsx src/scripts/smoke-ask-rag.ts"
   },
   "keywords": [],
   "author": "",

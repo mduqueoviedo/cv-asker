@@ -19,6 +19,7 @@ const DEFAULT_OPENROUTER_MODELS = [
   'google/gemma-3-27b-it:free',
   'openai/gpt-oss-20b:free',
 ] as const;
+const DEFAULT_RAG_ANSWER_MODEL = 'google/gemini-2.5-flash';
 
 export const resumeGenerationConfig = {
   defaults: {
@@ -53,6 +54,13 @@ export const resumeGenerationConfig = {
     maxRetries: 2,
     baseDelayMs: 600,
   },
+  rag: {
+    answering: {
+      defaultModel: DEFAULT_RAG_ANSWER_MODEL,
+      maxTokens: 500,
+      topMatchesForAnswer: 4,
+    },
+  },
   openRouter: {
     chatApiUrl: 'https://openrouter.ai/api/v1/chat/completions',
     imagesApiUrl: 'https://openrouter.ai/api/v1/images',
@@ -65,6 +73,10 @@ export function getDefaultResumeLlmModels(): string[] {
 
 export function getDefaultResumeLlmModel(): string {
   return resumeGenerationConfig.textGeneration.defaultModels[0];
+}
+
+export function getDefaultRagAnswerModel(): string {
+  return resumeGenerationConfig.rag.answering.defaultModel;
 }
 
 export function isResumeDocumentLanguage(value: string): value is ResumeDocumentLanguage {
