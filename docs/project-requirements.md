@@ -60,7 +60,6 @@ Build an AI-powered CV screener that allows a user to ask natural-language quest
 ### 4.3 AI Integration
 
 - Use OpenRouter as the LLM gateway provider.
-- Prefer free high-performance models such as `meta-llama/llama-3.3-70b-instruct:free` unless a better local decision is justified.
 - Use native HTTP `fetch` requests directly against `https://openrouter.ai/api/v1/chat/completions`.
 - Avoid third-party SDK abstractions when native web or Node APIs are sufficient.
 
