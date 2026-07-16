@@ -1,17 +1,50 @@
 import { env, getOpenRouterApiKey } from '../config/env.js';
-import {
-  getDefaultResumeLlmModel,
-  resumeGenerationConfig,
-} from '../config/resume-generation.js';
+import { resumeGenerationConfig } from '../config/resume-generation.js';
 import { fetchAiJsonWithRetry } from './ai-http.service.js';
-import type {
-  OpenRouterChatCompletionResponse,
-  OpenRouterMessageContentPart,
-  OpenRouterMessage,
-  OpenRouterPlugin,
-  OpenRouterProviderPreferences,
-  OpenRouterResponseFormat,
-} from '../types/openrouter.js';
+
+interface OpenRouterMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface OpenRouterMessageContentPart {
+  type?: string;
+  text?: string;
+}
+
+type OpenRouterResponseFormat =
+  | { type: 'json_object' }
+  | {
+      type: 'json_schema';
+      json_schema: {
+        name: string;
+        strict?: boolean;
+        schema: Record<string, unknown>;
+      };
+    };
+
+interface OpenRouterPlugin {
+  id: string;
+  enabled?: boolean;
+  [key: string]: unknown;
+}
+
+interface OpenRouterProviderPreferences {
+  require_parameters?: boolean;
+  [key: string]: unknown;
+}
+
+interface OpenRouterChatCompletionResponse {
+  choices?: Array<{
+    text?: string;
+    message?: {
+      content?: string | OpenRouterMessageContentPart[];
+      reasoning?: string;
+      refusal?: string;
+    };
+    finish_reason?: string;
+  }>;
+}
 
 export interface GenerateTextCompletionInput {
   prompt: string;
@@ -67,7 +100,7 @@ function createEmptyPayloadError(
 export async function generateTextCompletion(
   input: GenerateTextCompletionInput
 ): Promise<string> {
-  const model = input.model ?? getDefaultResumeLlmModel();
+  const model = input.model ?? resumeGenerationConfig.textGeneration.defaultModels[0];
   const requestStartedAt = Date.now();
   const messages: OpenRouterMessage[] = [
     ...(input.systemInstruction

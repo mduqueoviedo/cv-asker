@@ -1,7 +1,25 @@
 import { env, getOpenRouterApiKey } from '../config/env.js';
 import { resumeGenerationConfig } from '../config/resume-generation.js';
-import type { GeneratedImage, GenerateImageInput } from './image-generation.service.js';
 import { fetchAiJsonWithRetry } from './ai-http.service.js';
+
+export interface GenerateImageInput {
+  prompt: string;
+  model?: string;
+  mimeType?: 'image/jpeg' | 'image/png';
+  aspectRatio?: string;
+  imageSize?: string;
+  quality?: 'auto' | 'low' | 'medium' | 'high';
+  outputCompression?: number;
+}
+
+export interface GeneratedImage {
+  provider: string;
+  model: string;
+  prompt: string;
+  mimeType: string;
+  dataBase64: string;
+  dataUri: string;
+}
 
 interface OpenRouterImageResponse {
   data?: Array<{

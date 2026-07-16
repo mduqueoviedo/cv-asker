@@ -12,11 +12,7 @@ interface SmokeStep {
   args: string[];
 }
 
-interface RunSmokeSuiteOptions {
-  includeHttp: boolean;
-  includeAi: boolean;
-  modeLabel: 'basic' | 'costly';
-}
+type SmokeSuiteMode = 'basic' | 'costly';
 
 async function hasGeneratedDataset() {
   try {
@@ -63,8 +59,10 @@ async function runStep(step: SmokeStep) {
   console.log(`[Smoke Suite] OK ${step.label}`);
 }
 
-export async function runSmokeSuite(options: RunSmokeSuiteOptions) {
+export async function runSmokeSuite(mode: SmokeSuiteMode) {
   const datasetAvailable = await hasAnyDataset();
+  const includeHttp = mode === 'costly';
+  const includeAi = mode === 'costly';
   const smokeScript = (fileName: string) => path.join(currentDirectory, fileName);
   const steps: SmokeStep[] = [
     {
@@ -101,7 +99,7 @@ export async function runSmokeSuite(options: RunSmokeSuiteOptions) {
     console.log('[Smoke Suite] No local PDF dataset found. Skipping dataset-dependent smoke tests.');
   }
 
-  if (options.includeHttp && datasetAvailable) {
+  if (includeHttp && datasetAvailable) {
     steps.push({
       label: 'http-integration',
       command: 'node',
@@ -109,7 +107,7 @@ export async function runSmokeSuite(options: RunSmokeSuiteOptions) {
     });
   }
 
-  if (options.includeAi) {
+  if (includeAi) {
     if (datasetAvailable) {
       steps.push({
         label: 'ask-rag',
@@ -126,11 +124,11 @@ export async function runSmokeSuite(options: RunSmokeSuiteOptions) {
     }
   }
 
-  if (options.includeHttp && !datasetAvailable) {
+  if (includeHttp && !datasetAvailable) {
     console.log('[Smoke Suite] Skipping http-integration because no dataset is available.');
   }
 
-  if (options.includeAi && !datasetAvailable) {
+  if (includeAi && !datasetAvailable) {
     console.log('[Smoke Suite] Skipping AI smoke because no dataset is available.');
   }
 
@@ -141,6 +139,6 @@ export async function runSmokeSuite(options: RunSmokeSuiteOptions) {
   }
 
   console.log(
-    `[Smoke Suite] Completed mode=${options.modeLabel} steps=${steps.length} elapsedMs=${Date.now() - startedAt}`
+    `[Smoke Suite] Completed mode=${mode} steps=${steps.length} elapsedMs=${Date.now() - startedAt}`
   );
 }

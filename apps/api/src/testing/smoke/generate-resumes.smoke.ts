@@ -2,7 +2,6 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { hasOpenRouterApiKey } from '../../shared/config/env.js';
 import {
-  getDefaultResumeLlmModels,
   isResumeDocumentLanguage,
   isResumeTemplateId,
   resumeGenerationConfig,
@@ -147,7 +146,7 @@ async function ensureStylesAreBuilt(templateSelection: ResumeTemplateSelection) 
       await access(stylesPath);
     } catch {
       throw new Error(
-        `Missing compiled template CSS at ${stylesPath}. Run \`pnpm build:resume-styles\` first.`
+        `Missing compiled template CSS at ${stylesPath}. Run \`pnpm build\`, \`pnpm dev\`, or \`pnpm generate\` first.`
       );
     }
   }
@@ -160,7 +159,9 @@ async function main() {
 
   const effectiveModels =
     options.llmModels ??
-    (options.llmModel ? [options.llmModel] : getDefaultResumeLlmModels());
+    (options.llmModel
+      ? [options.llmModel]
+      : [...resumeGenerationConfig.textGeneration.defaultModels]);
 
   console.log('[Smoke] Preflight checks passed.');
   if (!hasOpenRouterApiKey()) {

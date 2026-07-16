@@ -1,6 +1,6 @@
 import type { CandidateResume, ResumePhotoAsset } from '../types/resume.js';
 import { resumeGenerationConfig } from '../../../shared/config/resume-generation.js';
-import { generateImage } from '../../../shared/ai/image-generation.service.js';
+import { generateImageWithOpenRouter } from '../../../shared/ai/openrouter-image.service.js';
 
 const CREATIVE_VARIANTS = [
   'navy blazer',
@@ -39,8 +39,9 @@ function createPhotoPrompt(candidate: CandidateResume): string {
 
 export async function generateResumePhoto(candidate: CandidateResume): Promise<ResumePhotoAsset> {
   const prompt = createPhotoPrompt(candidate);
-  const image = await generateImage({
+  const image = await generateImageWithOpenRouter({
     prompt,
+    model: resumeGenerationConfig.imageGeneration.model,
     mimeType: 'image/jpeg',
     aspectRatio: resumeGenerationConfig.imageGeneration.aspectRatio,
     imageSize: resumeGenerationConfig.imageGeneration.imageSize,

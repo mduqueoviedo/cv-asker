@@ -21,14 +21,11 @@ export interface UiCopy {
   askButton: string;
   resultPill: string;
   idleTitle: string;
-  answerReady: string;
   working: string;
   error: string;
   thinking: string;
   noQuestionYet: string;
   topMatches: string;
-  sources: string;
-  estimatedYears: string;
   requestFailed: string;
 }
 
@@ -56,14 +53,11 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     askButton: 'Ask',
     resultPill: 'Answer',
     idleTitle: 'Ready',
-    answerReady: 'Answer Ready',
     working: 'Working',
     error: 'Error',
     thinking: 'Thinking...',
     noQuestionYet: 'No question asked yet.',
     topMatches: 'Best fitting CVs',
-    sources: 'Relevant snippets',
-    estimatedYears: 'estimated',
     requestFailed: 'The search could not be completed.',
   },
   es: {
@@ -89,14 +83,11 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     askButton: 'Consultar',
     resultPill: 'Respuesta',
     idleTitle: 'Listo para buscar',
-    answerReady: 'Respuesta lista',
     working: 'Procesando',
     error: 'Error',
     thinking: 'Pensando...',
     noQuestionYet: 'Todavía no se ha hecho ninguna pregunta.',
     topMatches: 'Perfiles más afines',
-    sources: 'Fragmentos de apoyo',
-    estimatedYears: 'estimados',
     requestFailed: 'No se pudo completar la consulta.',
   },
 };

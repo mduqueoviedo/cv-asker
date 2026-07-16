@@ -22,14 +22,6 @@ export interface ResumePersonSeed {
   photoPalette: ResumePhotoPalette;
 }
 
-export interface ResumeSeedDataProvider {
-  createPersonSeed(
-    index: number,
-    language: ResumeDocumentLanguage,
-    variationSeed: number
-  ): ResumePersonSeed;
-}
-
 const LOCATION_CATALOG: Record<ResumeDocumentLanguage, readonly ResumeLocationSeed[]> = {
   'es-ES': [
     { city: 'Madrid', country: 'Spain', phonePrefix: '+34' },
@@ -186,32 +178,32 @@ function createPhotoPalette(fakerInstance: Faker): ResumePhotoPalette {
   };
 }
 
-export function createFakerResumeSeedDataProvider(): ResumeSeedDataProvider {
-  return {
-    createPersonSeed(index, language, variationSeed) {
-      const seed = createVariationSeed(index, language, variationSeed);
-      const fakerInstance = createScopedFaker(language, seed);
-      const grammaticalGender = createGrammaticalGender(fakerInstance, index);
-      const firstName = fakerInstance.person.firstName(
-        grammaticalGender === 'feminine' ? 'female' : 'male'
-      );
-      const lastNames =
-        language === 'es-ES'
-          ? [createSpanishLastName(fakerInstance), createSpanishLastName(fakerInstance)]
-          : [fakerInstance.person.lastName()];
-      const fullName = `${firstName} ${lastNames.join(' ')}`;
-      const location = createLocation(fakerInstance, language);
+export function createFakerResumePersonSeed(
+  index: number,
+  language: ResumeDocumentLanguage,
+  variationSeed: number
+): ResumePersonSeed {
+  const seed = createVariationSeed(index, language, variationSeed);
+  const fakerInstance = createScopedFaker(language, seed);
+  const grammaticalGender = createGrammaticalGender(fakerInstance, index);
+  const firstName = fakerInstance.person.firstName(
+    grammaticalGender === 'feminine' ? 'female' : 'male'
+  );
+  const lastNames =
+    language === 'es-ES'
+      ? [createSpanishLastName(fakerInstance), createSpanishLastName(fakerInstance)]
+      : [fakerInstance.person.lastName()];
+  const fullName = `${firstName} ${lastNames.join(' ')}`;
+  const location = createLocation(fakerInstance, language);
 
-      return {
-        seed,
-        fullName,
-        grammaticalGender,
-        age: fakerInstance.number.int({ min: 24, max: 44 }),
-        location: `${location.city}, ${location.country}`,
-        email: createEmail(fakerInstance, firstName, lastNames),
-        phone: createPhone(fakerInstance, location),
-        photoPalette: createPhotoPalette(fakerInstance),
-      };
-    },
+  return {
+    seed,
+    fullName,
+    grammaticalGender,
+    age: fakerInstance.number.int({ min: 24, max: 44 }),
+    location: `${location.city}, ${location.country}`,
+    email: createEmail(fakerInstance, firstName, lastNames),
+    phone: createPhone(fakerInstance, location),
+    photoPalette: createPhotoPalette(fakerInstance),
   };
 }

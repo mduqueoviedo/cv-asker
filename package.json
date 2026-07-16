@@ -9,7 +9,7 @@
     "typecheck": "tsc -p apps/chat/tsconfig.json --noEmit && tsc -p apps/api/tsconfig.json --noEmit",
     "generate": "node ./apps/api/scripts/build-resume-styles.mjs && tsx apps/api/src/testing/smoke/generate-resumes.smoke.ts",
     "test:smoke": "node --import tsx apps/api/src/testing/smoke/run-smoke-suite.ts",
-    "test:smoke:costly": "node --import tsx apps/api/src/testing/smoke/run-costly-smoke-suite.ts"
+    "test:smoke:costly": "node --import tsx apps/api/src/testing/smoke/run-smoke-suite.ts --mode=costly"
   },
   "keywords": [],
   "author": "",

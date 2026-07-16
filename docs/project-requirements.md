@@ -67,7 +67,7 @@ Build an AI-powered CV screener that allows a user to ask natural-language quest
 ## 5. Architecture Rules
 
 - All source code, comments, logs, architecture notes, and technical artifacts must be written in English.
-- Use a modular backend architecture with separation between routes, controllers, services, configuration, and static templates.
+- Use a modular backend architecture with clear separation between HTTP entrypoints, domain services, configuration, and static templates.
 - Avoid over-engineering and favor the fastest path to a reliable hybrid RAG implementation.
 - Do not install redundant libraries when built-in platform APIs are enough.
 - The final solution may run locally only; cloud deployment is optional.
