@@ -32,7 +32,7 @@ async function loadTemplateStyles(template: ResumeTemplateId): Promise<string> {
     return cached;
   }
 
-  const stylesPath = new URL(`./templates/${template}.generated.css`, import.meta.url);
+  const stylesPath = new URL(`../templates/${template}.generated.css`, import.meta.url);
   const styles = await readFile(stylesPath, 'utf8');
   stylesCache.set(template, styles);
   return styles;

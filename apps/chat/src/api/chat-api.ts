@@ -1,9 +1,7 @@
 import type { ChatAnswerResult, IngestionStatus } from '../types';
 
-interface ApiSuccess<T> {
+interface ApiSuccess {
   success: true;
-  result?: T;
-  index?: unknown;
 }
 
 interface ApiFailure {
@@ -11,12 +9,8 @@ interface ApiFailure {
   error?: string;
 }
 
-async function readJson<T>(response: Response): Promise<T> {
-  return (await response.json()) as T;
-}
-
-async function ensureSuccess<T>(response: Response): Promise<ApiSuccess<T>> {
-  const payload = await readJson<ApiSuccess<T> | ApiFailure>(response);
+async function ensureSuccess<T extends ApiSuccess>(response: Response): Promise<T> {
+  const payload = (await response.json()) as T | ApiFailure;
 
   if (!response.ok || payload.success !== true) {
     throw new Error(
@@ -29,9 +23,10 @@ async function ensureSuccess<T>(response: Response): Promise<ApiSuccess<T>> {
 
 export async function fetchIngestionStatus(): Promise<IngestionStatus> {
   const response = await fetch('/api/ingestion/status');
-  const payload = await ensureSuccess<IngestionStatus>(response);
+  const payload = await ensureSuccess<ApiSuccess & IngestionStatus>(response);
+  const { success: _success, ...status } = payload;
 
-  return payload as unknown as IngestionStatus;
+  return status;
 }
 
 export async function rebuildIngestionIndex(forceRebuild = true): Promise<void> {
@@ -41,7 +36,7 @@ export async function rebuildIngestionIndex(forceRebuild = true): Promise<void> 
     body: JSON.stringify({ forceRebuild }),
   });
 
-  await ensureSuccess(response);
+  await ensureSuccess<ApiSuccess & { index: unknown }>(response);
 }
 
 export async function askChatQuestion(
@@ -53,7 +48,7 @@ export async function askChatQuestion(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question, forceRebuild }),
   });
-  const payload = await ensureSuccess<ChatAnswerResult>(response);
+  const payload = await ensureSuccess<ApiSuccess & { result?: ChatAnswerResult }>(response);
 
   if (!payload.result) {
     throw new Error('The server returned no answer payload.');

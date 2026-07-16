@@ -5,6 +5,7 @@ dist/
 .DS_Store
 storage/
 .local/
+apps/api/src/modules/cv-generation/templates/*.generated.css
 
 .agents/
 .codex/

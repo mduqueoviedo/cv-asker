@@ -1,8 +1,5 @@
 import { hasOpenRouterApiKey } from '../../../shared/config/env.js';
-import {
-  getDefaultRagAnswerModel,
-  resumeGenerationConfig,
-} from '../../../shared/config/resume-generation.js';
+import { resumeGenerationConfig } from '../../../shared/config/resume-generation.js';
 import type {
   ResumeRagAnswerResult,
   ResumeRagCandidateMatch,
@@ -634,7 +631,7 @@ async function generateGroundedAnswer(
   matches: ResumeRagCandidateMatch[],
   language: ChatLanguage
 ): Promise<{ answer: string; model: string }> {
-  const model = getDefaultRagAnswerModel();
+  const model = resumeGenerationConfig.rag.answering.defaultModel;
   const copy = getLocalizedCopy(language);
   const context = matches
     .slice(0, resumeGenerationConfig.rag.answering.topMatchesForAnswer)

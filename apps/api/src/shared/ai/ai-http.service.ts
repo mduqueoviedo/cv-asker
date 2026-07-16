@@ -11,7 +11,7 @@ export interface AiApiRequestOptions {
   retryableStatusCodes?: Set<number>;
 }
 
-export class AiApiRequestError extends Error {
+class AiApiRequestError extends Error {
   public readonly status: number | null;
   public readonly attemptCount: number;
   public readonly retryAfterMs: number | null;

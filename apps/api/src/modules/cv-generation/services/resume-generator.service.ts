@@ -3,7 +3,6 @@ import { randomInt } from 'node:crypto';
 import path from 'node:path';
 import { hasOpenRouterApiKey } from '../../../shared/config/env.js';
 import {
-  getDefaultResumeLlmModels,
   isResumeDocumentLanguage,
   isResumeTemplateId,
   resumeGenerationConfig,
@@ -24,7 +23,7 @@ import type {
   ResumeTemplateSelection,
   ResumeTextGenerationMetadata,
 } from '../types/resume.js';
-import { createFakerResumeSeedDataProvider } from './resume-faker-data.provider.js';
+import { createFakerResumePersonSeed } from './resume-faker-data.provider.js';
 import { generateResumePhoto } from './resume-photo.service.js';
 import {
   generateResumeProfiles,
@@ -38,7 +37,6 @@ const PDF_DIRECTORY = resumePdfDirectory;
 const MANIFEST_PATH = path.join(OUTPUT_DIRECTORY, 'generated-manifest.json');
 const LEGACY_HTML_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'html');
 const LEGACY_METADATA_DIRECTORY = path.join(OUTPUT_DIRECTORY, 'metadata');
-const resumeSeedDataProvider = createFakerResumeSeedDataProvider();
 
 interface CandidateResumeDraft
   extends Omit<
@@ -149,7 +147,7 @@ function resolveRequestedModels(input: GenerateResumeDatasetInput): string[] {
     return [input.llmModel.trim()];
   }
 
-  return getDefaultResumeLlmModels();
+  return [...resumeGenerationConfig.textGeneration.defaultModels];
 }
 
 async function pathExists(targetPath: string): Promise<boolean> {
@@ -263,7 +261,7 @@ function createCandidateDraft(
   language: ResumeDocumentLanguage,
   variationSeed: number
 ): CandidateResumeDraft {
-  const personSeed = resumeSeedDataProvider.createPersonSeed(index, language, variationSeed);
+  const personSeed = createFakerResumePersonSeed(index, language, variationSeed);
   const slug = createSlug(personSeed.fullName);
   const id = `${slug}-${index + 1}`;
 
@@ -545,7 +543,7 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
         ? manifest.lastTextGeneration.models
         : manifest.lastTextGeneration?.model
           ? [manifest.lastTextGeneration.model]
-          : getDefaultResumeLlmModels();
+          : [...resumeGenerationConfig.textGeneration.defaultModels];
     const usedModels =
       manifest.lastTextGeneration?.usedModels && manifest.lastTextGeneration.usedModels.length > 0
         ? manifest.lastTextGeneration.usedModels
@@ -597,8 +595,8 @@ export async function getResumeDatasetManifest(): Promise<ResumeDatasetManifest 
               Math.max(0, normalizedResumes.length - (manifest.lastTextGeneration.enrichedProfileCount ?? 0)),
           }
         : createTextGenerationMetadata(
-            getDefaultResumeLlmModels(),
-            getDefaultResumeLlmModels(),
+            [...resumeGenerationConfig.textGeneration.defaultModels],
+            [...resumeGenerationConfig.textGeneration.defaultModels],
             []
           ),
       lastImageGeneration: manifest.lastImageGeneration ?? createImageGenerationMetadata(0),

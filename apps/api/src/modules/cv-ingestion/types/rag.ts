@@ -1,7 +1,6 @@
 import type { ResumeDocumentLanguage, ResumeTemplateId } from '../../cv-generation/types/resume.js';
 
 export type ResumeSourceType = 'generated-dataset' | 'ad-hoc-file' | 'imported-folder';
-export type ResumeRagDatasetSource = 'local';
 export type ParsedResumeDocumentLanguage = ResumeDocumentLanguage | 'unknown';
 export type ParsedResumeTemplateId = ResumeTemplateId | 'unknown';
 
@@ -182,7 +181,7 @@ export interface ResumeRagIndexedChunk {
 }
 
 export interface ResumeRagIndex {
-  source: ResumeRagDatasetSource;
+  source: 'local';
   datasetId: string;
   builtAt: string;
   embeddingDimensions: number;
@@ -250,7 +249,7 @@ export interface ResumeRagCandidateMatch {
 }
 
 export interface ResumeRagAnswerResult {
-  source: ResumeRagDatasetSource;
+  source: 'local';
   datasetId: string;
   builtAt: string;
   question: string;

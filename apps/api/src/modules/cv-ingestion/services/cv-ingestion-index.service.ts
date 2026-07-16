@@ -5,7 +5,6 @@ import { resumeGenerationConfig } from '../../../shared/config/resume-generation
 import { ragStorageDirectory } from '../../../shared/config/paths.js';
 import type {
   ResumeRagCandidateProfile,
-  ResumeRagDatasetSource,
   ResumeRagDocumentArtifacts,
   ResumeRagIndex,
   ResumeRagIndexedChunk,
@@ -72,7 +71,7 @@ interface ParsedMonthPoint {
 }
 
 interface RagDatasetSnapshot {
-  source: ResumeRagDatasetSource;
+  source: 'local';
   datasetId: string;
   count: number;
   location: string;
@@ -80,11 +79,10 @@ interface RagDatasetSnapshot {
 
 export interface BuildResumeRagIndexOptions {
   forceRebuild?: boolean;
-  source?: ResumeRagDatasetSource;
 }
 
-function resolveIndexFilePath(source: ResumeRagDatasetSource): string {
-  return path.join(RAG_INDEX_DIRECTORY, `${source}-resume-rag-index.json`);
+function resolveIndexFilePath(): string {
+  return path.join(RAG_INDEX_DIRECTORY, 'local-resume-rag-index.json');
 }
 
 function roundScore(value: number): number {
@@ -367,23 +365,9 @@ async function getLocalDatasetSnapshot(): Promise<RagDatasetSnapshot | null> {
   }
 }
 
-async function getRagDatasetSnapshot(
-  _source: ResumeRagDatasetSource
-): Promise<RagDatasetSnapshot | null> {
-  return getLocalDatasetSnapshot();
-}
-
-export async function detectPreferredResumeRagSource(
-  source?: ResumeRagDatasetSource
-): Promise<ResumeRagDatasetSource> {
-  return source ?? 'local';
-}
-
-export async function loadResumeRagIndex(
-  source: ResumeRagDatasetSource = 'local'
-): Promise<ResumeRagIndex | null> {
+export async function loadResumeRagIndex(): Promise<ResumeRagIndex | null> {
   try {
-    const content = await readFile(resolveIndexFilePath(source), 'utf8');
+    const content = await readFile(resolveIndexFilePath(), 'utf8');
     return JSON.parse(content) as ResumeRagIndex;
   } catch {
     return null;
@@ -393,14 +377,13 @@ export async function loadResumeRagIndex(
 export async function buildResumeRagIndex(
   options: BuildResumeRagIndexOptions = {}
 ): Promise<ResumeRagIndex> {
-  const source = await detectPreferredResumeRagSource(options.source);
-  const snapshot = await getRagDatasetSnapshot(source);
+  const snapshot = await getLocalDatasetSnapshot();
 
   if (!snapshot) {
     throw new Error(`No PDF dataset was found at ${resumeGenerationConfig.rag.sources.pdfDirectory}.`);
   }
 
-  const existingIndex = await loadResumeRagIndex(source);
+  const existingIndex = await loadResumeRagIndex();
 
   if (!options.forceRebuild && existingIndex?.datasetId === snapshot.datasetId) {
     return existingIndex;
@@ -435,7 +418,7 @@ export async function buildResumeRagIndex(
     )
   );
   const index: ResumeRagIndex = {
-    source,
+    source: 'local',
     datasetId: extractionResult.datasetId,
     builtAt: new Date().toISOString(),
     embeddingDimensions: getDefaultEmbeddingDimensions(),
@@ -447,7 +430,7 @@ export async function buildResumeRagIndex(
   };
 
   await ensureIndexDirectory();
-  await writeFile(resolveIndexFilePath(source), JSON.stringify(index, null, 2));
+  await writeFile(resolveIndexFilePath(), JSON.stringify(index, null, 2));
 
   return index;
 }
@@ -455,14 +438,13 @@ export async function buildResumeRagIndex(
 export async function ensureResumeRagIndex(
   options: BuildResumeRagIndexOptions = {}
 ): Promise<ResumeRagIndex> {
-  const source = await detectPreferredResumeRagSource(options.source);
-  const snapshot = await getRagDatasetSnapshot(source);
+  const snapshot = await getLocalDatasetSnapshot();
 
   if (!snapshot) {
     throw new Error(`No PDF dataset was found at ${resumeGenerationConfig.rag.sources.pdfDirectory}.`);
   }
 
-  const existingIndex = await loadResumeRagIndex(source);
+  const existingIndex = await loadResumeRagIndex();
 
   if (
     existingIndex &&
@@ -472,21 +454,17 @@ export async function ensureResumeRagIndex(
     return existingIndex;
   }
 
-  return buildResumeRagIndex({
-    ...options,
-    source,
-  });
+  return buildResumeRagIndex(options);
 }
 
-export async function getResumeRagStatus(source?: ResumeRagDatasetSource) {
-  const resolvedSource = await detectPreferredResumeRagSource(source);
+export async function getResumeRagStatus() {
   const [snapshot, index] = await Promise.all([
-    getRagDatasetSnapshot(resolvedSource),
-    loadResumeRagIndex(resolvedSource),
+    getLocalDatasetSnapshot(),
+    loadResumeRagIndex(),
   ]);
 
   return {
-    source: resolvedSource,
+    source: 'local' as const,
     hasDataset: Boolean(snapshot),
     datasetId: snapshot?.datasetId ?? null,
     datasetCount: snapshot?.count ?? 0,
@@ -497,7 +475,7 @@ export async function getResumeRagStatus(source?: ResumeRagDatasetSource) {
     candidateCount: index?.candidateCount ?? 0,
     chunkCount: index?.chunkCount ?? 0,
     stale: Boolean(snapshot && index && snapshot.datasetId !== index.datasetId),
-    indexFilePath: resolveIndexFilePath(resolvedSource),
+    indexFilePath: resolveIndexFilePath(),
     pdfDirectory: resumeGenerationConfig.rag.sources.pdfDirectory,
   };
 }
