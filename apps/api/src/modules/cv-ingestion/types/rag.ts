@@ -201,6 +201,7 @@ export type ResumeRagQueryKind =
   | 'keyword_lookup';
 export type ResumeRagResultScope = 'matching' | 'catalog';
 export type ResumeRagConceptKind = 'technology' | 'domain' | 'role';
+export type ResumeRagQueryAnalysisSource = 'heuristic' | 'llm';
 
 export interface ResumeRagQueryConcepts {
   technologies: string[];
@@ -223,6 +224,7 @@ export interface ResumeRagQueryAnalysis {
   searchTerms: string[];
   concepts: ResumeRagQueryConcepts;
   filters: ResumeRagQueryFilters;
+  sources: ResumeRagQueryAnalysisSource[];
 }
 
 export interface ResumeRagCitation {

@@ -250,6 +250,7 @@ function createBaseAnalysis(question: string): ResumeRagQueryAnalysis {
       languages: detectedLanguages,
       minExperienceYears: detectMinimumExperienceYears(question),
     },
+    sources: ['heuristic'],
   };
 }
 
@@ -517,6 +518,7 @@ function mergeResumeRagQuestionAnalyses(
     topK: baseAnalysis.topK ?? normalizeTopK(llmAnalysis.topK),
     concepts: mergedConcepts,
     filters: mergedFilters,
+    sources: ['heuristic', 'llm'],
   };
 }
 

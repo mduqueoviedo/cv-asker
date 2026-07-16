@@ -8,6 +8,8 @@ import type {
 } from '../../modules/cv-ingestion/types/rag.js';
 import type { ResumeRagSearchResult } from '../../modules/cv-ingestion/services/cv-search.service.js';
 
+const configuredOpenRouterApiKey = process.env.OPENROUTER_API_KEY?.trim() ?? '';
+
 function normalizeEvidence(value: string): string {
   return normalizeSearchText(value).replace(/\s+/g, ' ').trim();
 }
@@ -31,18 +33,52 @@ function includesTokenVariant(haystack: string, variants: string[]): boolean {
   return variants.some((variant) => haystack.includes(normalizeEvidence(variant)));
 }
 
-async function runChineseNegativeQuery() {
+async function withLocalAnswerFallback(action: () => Promise<void>) {
+  const previousApiKey = process.env.OPENROUTER_API_KEY;
   process.env.OPENROUTER_API_KEY = '';
-  const result = await answerResumeRagQuestion('Quién habla chino?', {
-    forceRebuild: false,
-  });
 
-  assert.equal(result.responseLanguage, 'es');
-  assert.equal(result.showMatches, false);
-  assert.equal(result.matches.length, 0);
-  assert.match(result.answer, /No he encontrado/i);
-  assert.match(result.answer, /chino/i);
-  console.log('[Golden RAG] OK negative-language-query');
+  try {
+    await action();
+  } finally {
+    process.env.OPENROUTER_API_KEY = previousApiKey;
+  }
+}
+
+async function withLocalAnswerFallbackResult<T>(action: () => Promise<T>): Promise<T> {
+  const previousApiKey = process.env.OPENROUTER_API_KEY;
+  process.env.OPENROUTER_API_KEY = '';
+
+  try {
+    return await action();
+  } finally {
+    process.env.OPENROUTER_API_KEY = previousApiKey;
+  }
+}
+
+function assertHybridAnalysis(
+  sources: string[],
+  label: string
+) {
+  assert.ok(configuredOpenRouterApiKey, `Expected OPENROUTER_API_KEY to be configured for ${label}.`);
+  assert.ok(
+    sources.includes('llm'),
+    `Expected hybrid query analysis with LLM normalization for ${label}, but got [${sources.join(', ')}].`
+  );
+}
+
+async function runChineseNegativeQuery() {
+  await withLocalAnswerFallback(async () => {
+    const result = await answerResumeRagQuestion('Quién habla chino?', {
+      forceRebuild: false,
+    });
+
+    assert.equal(result.responseLanguage, 'es');
+    assert.equal(result.showMatches, false);
+    assert.equal(result.matches.length, 0);
+    assert.match(result.answer, /No he encontrado/i);
+    assert.match(result.answer, /chino/i);
+    console.log('[Golden RAG] OK negative-language-query');
+  });
 }
 
 async function runMarcosLookupQuery() {
@@ -50,6 +86,7 @@ async function runMarcosLookupQuery() {
     forceRebuild: false,
   });
 
+  assertHybridAnalysis(result.analysis.sources, 'marcos-name-query');
   assert.ok(result.matches.length >= 1, 'Expected at least one Marcos match.');
   for (const match of result.matches) {
     assert.match(normalizeEvidence(match.fullName), /\bmarcos\b/);
@@ -67,6 +104,7 @@ async function runExperianQuery() {
     forceRebuild: false,
   });
 
+  assertHybridAnalysis(result.analysis.sources, 'experian-company-query');
   assert.ok(result.matches.length >= 1, 'Expected at least one Experian match.');
   assert.ok(
     includesTokenVariant(buildMatchEvidence(result, result.matches[0]), ['Experian']),
@@ -92,6 +130,7 @@ async function runNamedExperianQuery() {
     forceRebuild: false,
   });
 
+  assertHybridAnalysis(result.analysis.sources, 'experian-named-company-query');
   assert.ok(result.matches.length >= 1, 'Expected at least one Experian match for the named-company phrasing.');
   assert.match(result.matches[0]?.fullName ?? '', /Marcos Duque Oviedo/i);
 
@@ -114,6 +153,7 @@ async function runWebScrapingQuery() {
     forceRebuild: false,
   });
 
+  assertHybridAnalysis(result.analysis.sources, 'webscraping-keyword-query');
   assert.ok(result.matches.length >= 1, 'Expected at least one webscraping match.');
 
   for (const match of result.matches) {
@@ -135,41 +175,44 @@ async function runWebScrapingQuery() {
 }
 
 async function runCandidateExperienceConfirmationQuery() {
-  process.env.OPENROUTER_API_KEY = '';
-  const result = await answerResumeRagQuestion('Marcos Duque no tiene más de 10 años de experiencia?', {
-    forceRebuild: false,
-  });
+  await withLocalAnswerFallback(async () => {
+    const result = await answerResumeRagQuestion('Marcos Duque no tiene más de 10 años de experiencia?', {
+      forceRebuild: false,
+    });
 
-  assert.equal(result.responseLanguage, 'es');
-  assert.match(result.answer, /^No,/);
-  assert.match(result.answer, /16 años/i);
-  assert.doesNotMatch(result.answer, /\[[^\]]+:[^\]]+\]/);
-  console.log('[Golden RAG] OK candidate-experience-confirmation-query');
+    assert.equal(result.responseLanguage, 'es');
+    assert.match(result.answer, /^No,/);
+    assert.match(result.answer, /16 años/i);
+    assert.doesNotMatch(result.answer, /\[[^\]]+:[^\]]+\]/);
+    console.log('[Golden RAG] OK candidate-experience-confirmation-query');
+  });
 }
 
 async function runCandidateLanguageConfirmationQuery() {
-  process.env.OPENROUTER_API_KEY = '';
-  const result = await answerResumeRagQuestion('Marcos Duque no habla japonés?', {
-    forceRebuild: false,
-  });
+  await withLocalAnswerFallback(async () => {
+    const result = await answerResumeRagQuestion('Marcos Duque no habla japonés?', {
+      forceRebuild: false,
+    });
 
-  assert.equal(result.responseLanguage, 'es');
-  assert.match(result.answer, /^No,/);
-  assert.match(result.answer, /japonés/i);
-  console.log('[Golden RAG] OK candidate-language-confirmation-query');
+    assert.equal(result.responseLanguage, 'es');
+    assert.match(result.answer, /^No,/);
+    assert.match(result.answer, /japonés/i);
+    console.log('[Golden RAG] OK candidate-language-confirmation-query');
+  });
 }
 
 async function runFrontendFrenchQuery() {
-  process.env.OPENROUTER_API_KEY = '';
-  const result = await answerResumeRagQuestion('Tenemos algún frontend con francés?', {
-    forceRebuild: false,
-  });
+  await withLocalAnswerFallback(async () => {
+    const result = await answerResumeRagQuestion('Tenemos algún frontend con francés?', {
+      forceRebuild: false,
+    });
 
-  assert.equal(result.responseLanguage, 'es');
-  assert.equal(result.matches.length, 1);
-  assert.match(result.matches[0]?.fullName ?? '', /Alejandra Rocha Rivas/i);
-  assert.match(result.answer, /Sí,/);
-  console.log('[Golden RAG] OK frontend-french-query');
+    assert.equal(result.responseLanguage, 'es');
+    assert.equal(result.matches.length, 1);
+    assert.match(result.matches[0]?.fullName ?? '', /Alejandra Rocha Rivas/i);
+    assert.match(result.answer, /Sí,/);
+    console.log('[Golden RAG] OK frontend-french-query');
+  });
 }
 
 async function runBackendEnglishQuery() {
@@ -177,6 +220,7 @@ async function runBackendEnglishQuery() {
     forceRebuild: false,
   });
 
+  assertHybridAnalysis(result.analysis.sources, 'backend-english-query');
   assert.ok(result.matches.length >= 1, 'Expected at least one backend + English match.');
 
   for (const match of result.matches) {
@@ -198,13 +242,16 @@ async function runBackendEnglishQuery() {
 }
 
 async function runBroadEnglishLanguageQuery() {
-  process.env.OPENROUTER_API_KEY = '';
-  const result = await answerResumeRagQuestion('Busco candidatos que hablen inglés.', {
-    forceRebuild: false,
-  });
   const searchResult = await searchResumeRag('Busco candidatos que hablen inglés.', {
     forceRebuild: false,
   });
+  const result = await withLocalAnswerFallbackResult(() =>
+    answerResumeRagQuestion('Busco candidatos que hablen inglés.', {
+      forceRebuild: false,
+    })
+  );
+
+  assertHybridAnalysis(searchResult.analysis.sources, 'broad-english-language-search');
   const expectedEnglishCandidateCount = searchResult.index.candidates.filter((candidate) =>
     /\benglish\b|\bingles\b/.test(normalizeEvidence(candidate.languages.join(' ')))
   ).length;
@@ -231,14 +278,16 @@ async function runBroadEnglishLanguageQuery() {
 }
 
 async function runCatalogAllCvsQuery() {
-  process.env.OPENROUTER_API_KEY = '';
-  const result = await answerResumeRagQuestion('Dame todos los CVs del sistema.', {
-    forceRebuild: false,
-  });
   const searchResult = await searchResumeRag('Dame todos los CVs del sistema.', {
     forceRebuild: false,
   });
+  const result = await withLocalAnswerFallbackResult(() =>
+    answerResumeRagQuestion('Dame todos los CVs del sistema.', {
+      forceRebuild: false,
+    })
+  );
 
+  assertHybridAnalysis(searchResult.analysis.sources, 'catalog-all-cvs-search');
   assert.equal(result.responseLanguage, 'es');
   assert.equal(result.showMatches, true);
   assert.equal(
@@ -259,6 +308,7 @@ async function runQaRoleQuery() {
     forceRebuild: false,
   });
 
+  assertHybridAnalysis(result.analysis.sources, 'qa-role-query');
   assert.ok(result.matches.length >= 3, 'Expected several QA matches.');
 
   for (const match of result.matches.slice(0, 3)) {
@@ -278,6 +328,7 @@ async function runReactStackQuery() {
     forceRebuild: false,
   });
 
+  assertHybridAnalysis(result.analysis.sources, 'react-stack-query');
   assert.ok(result.matches.length >= 3, 'Expected several React matches.');
   assert.match(result.matches[0]?.fullName ?? '', /Luisa Perales Sandoval/i);
 
@@ -301,6 +352,7 @@ async function runCloudDomainQuery() {
     forceRebuild: false,
   });
 
+  assertHybridAnalysis(result.analysis.sources, 'cloud-domain-query');
   assert.ok(result.matches.length >= 1, 'Expected at least one cloud match.');
   assert.match(result.matches[0]?.fullName ?? '', /Nova Zboncak/i);
   assert.ok(
@@ -322,17 +374,18 @@ async function runCloudDomainQuery() {
 }
 
 async function runJavaNegativeQuery() {
-  process.env.OPENROUTER_API_KEY = '';
-  const result = await answerResumeRagQuestion('Estoy buscando candidatos con Java.', {
-    forceRebuild: false,
-  });
+  await withLocalAnswerFallback(async () => {
+    const result = await answerResumeRagQuestion('Estoy buscando candidatos con Java.', {
+      forceRebuild: false,
+    });
 
-  assert.equal(result.responseLanguage, 'es');
-  assert.equal(result.showMatches, false);
-  assert.equal(result.matches.length, 0);
-  assert.match(result.answer, /No he encontrado perfiles/i);
-  assert.match(result.answer, /java/i);
-  console.log('[Golden RAG] OK java-negative-query');
+    assert.equal(result.responseLanguage, 'es');
+    assert.equal(result.showMatches, false);
+    assert.equal(result.matches.length, 0);
+    assert.match(result.answer, /No he encontrado perfiles/i);
+    assert.match(result.answer, /java/i);
+    console.log('[Golden RAG] OK java-negative-query');
+  });
 }
 
 async function main() {
