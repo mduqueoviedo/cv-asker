@@ -42,13 +42,6 @@ export interface ResumePhotoAsset {
   model: string;
 }
 
-export interface StoredResumePhotoAsset {
-  provider: string;
-  mimeType: string;
-  prompt: string;
-  model: string;
-}
-
 export interface CandidateResume {
   id: string;
   documentLanguage: ResumeDocumentLanguage;
@@ -73,11 +66,6 @@ export interface CandidateResume {
   photo: ResumePhotoAsset;
 }
 
-export interface StoredCandidateResume extends Omit<CandidateResume, 'photo'> {
-  template: ResumeTemplateId;
-  photo: StoredResumePhotoAsset;
-}
-
 export interface GeneratedResumeArtifact {
   id: string;
   documentLanguage: ResumeDocumentLanguage;
@@ -87,8 +75,6 @@ export interface GeneratedResumeArtifact {
   template: ResumeTemplateId;
   pdfFileName: string;
   pdfFilePath: string;
-  metadataFileName: string;
-  metadataFilePath: string;
 }
 
 export type ResumeGenerationMode = 'replace' | 'append';
@@ -133,7 +119,6 @@ export interface ResumeDatasetManifest {
   lastImageGeneration: ResumeImageGenerationMetadata;
   outputDirectory: string;
   pdfDirectory: string;
-  metadataDirectory: string;
   count: number;
   resumes: GeneratedResumeArtifact[];
 }

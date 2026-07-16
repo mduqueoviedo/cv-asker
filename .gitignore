@@ -4,6 +4,7 @@ dist/
 .pnpm-store/
 .DS_Store
 storage/
+.local/
 
 .agents/
 .codex/

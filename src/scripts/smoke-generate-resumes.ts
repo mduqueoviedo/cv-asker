@@ -187,7 +187,6 @@ async function main() {
   console.log(`[Smoke] datasetId=${manifest.datasetId}`);
   console.log(`[Smoke] generated=${manifest.lastBatchCount} total=${manifest.count}`);
   console.log(`[Smoke] pdfDirectory=${manifest.pdfDirectory}`);
-  console.log(`[Smoke] metadataDirectory=${manifest.metadataDirectory}`);
   console.log(`[Smoke] preferredModel=${manifest.lastTextGeneration.model}`);
   console.log(`[Smoke] strategy=${manifest.lastTextGeneration.strategy}`);
   console.log(`[Smoke] batchLanguages=${manifest.lastBatchLanguages.join(', ')}`);
