@@ -303,7 +303,7 @@ function extractRequiredTermConstraintTokens(
   excludedTokens: Set<string>
 ): string[] {
   if (
-    !['organization_lookup', 'skill_lookup', 'keyword_lookup', 'language_lookup'].includes(
+    !['organization_lookup', 'skill_lookup', 'keyword_lookup'].includes(
       analysis.queryKind
     )
   ) {
@@ -345,6 +345,29 @@ function extractRequiredTermConstraintTokens(
   return selectedPool
     .filter((entry) => entry.candidateIds.length === minimumCandidateCount)
     .map((entry) => entry.token);
+}
+
+function getEffectiveQueryTerms(analysis: ResumeRagQueryAnalysis): string[] {
+  if (analysis.queryKind === 'language_lookup' && analysis.filters.languages.length > 0) {
+    return [
+      ...new Set(
+        analysis.filters.languages.flatMap(
+          (language) =>
+            LANGUAGE_FILTER_ALIASES[language as keyof typeof LANGUAGE_FILTER_ALIASES] ?? [language]
+        )
+      ),
+    ].map((term) => normalizeSearchText(term));
+  }
+
+  return analysis.searchTerms;
+}
+
+function queryHasExplicitEvidenceRequirement(analysis: ResumeRagQueryAnalysis): boolean {
+  if (['organization_lookup', 'skill_lookup', 'keyword_lookup', 'language_lookup'].includes(analysis.queryKind)) {
+    return true;
+  }
+
+  return false;
 }
 
 function matchesTokenConstraint(candidateTokens: Set<string>, constraintTokens: string[]): boolean {
@@ -669,7 +692,24 @@ function aggregateCandidateMatches(
       } satisfies ResumeRagCandidateMatch;
     })
     .sort((left, right) => right.score - left.score)
-    .slice(0, analysis.topK);
+    .slice(0, analysis.topK ?? Number.POSITIVE_INFINITY);
+}
+
+function createCatalogMatches(index: ResumeRagIndex): ResumeRagCandidateMatch[] {
+  return [...index.candidates]
+    .sort((left, right) => left.fullName.localeCompare(right.fullName))
+    .map((candidate) => ({
+      candidateId: candidate.candidateId,
+      fullName: candidate.fullName,
+      primaryRole: candidate.primaryRole,
+      pdfFileName: candidate.pdfFileName,
+      pdfFilePath: candidate.pdfFilePath,
+      score: 1,
+      totalEstimatedExperienceYears: candidate.totalEstimatedExperienceYears,
+      languages: candidate.languages,
+      skills: candidate.skills.slice(0, 12),
+      citations: [],
+    }));
 }
 
 function deduplicateCitations(citations: ResumeRagCitation[]): ResumeRagCitation[] {
@@ -694,6 +734,16 @@ export async function searchResumeRag(
 ): Promise<ResumeRagSearchResult> {
   const index = await ensureResumeRagIndex({ forceRebuild: options.forceRebuild });
   const analysis = analyzeResumeRagQuestion(question);
+
+  if (analysis.resultScope === 'catalog') {
+    return {
+      index,
+      analysis,
+      matches: createCatalogMatches(index).slice(0, analysis.topK ?? Number.POSITIVE_INFINITY),
+      citations: [],
+    };
+  }
+
   const candidateProfiles = new Map(
     index.candidates.map((candidate) => [candidate.candidateId, candidate])
   );
@@ -718,8 +768,25 @@ export async function searchResumeRag(
     candidateSearchTokenSets,
     excludedConstraintTokens
   );
+  const hasAnyRequiredTermEvidence =
+    requiredTermConstraintTokens.length > 0 ||
+    analysis.filters.languages.length > 0 ||
+    analysis.concepts.technologies.length > 0 ||
+    analysis.concepts.domains.length > 0 ||
+    analysis.concepts.roles.length > 0;
+
+  if (queryHasExplicitEvidenceRequirement(analysis) && !hasAnyRequiredTermEvidence) {
+    return {
+      index,
+      analysis,
+      matches: [],
+      citations: [],
+    };
+  }
+
+  const effectiveQueryTerms = getEffectiveQueryTerms(analysis);
   const queryText =
-    analysis.searchTerms.length > 0 ? analysis.searchTerms.join(' ') : analysis.normalizedQuestion;
+    effectiveQueryTerms.length > 0 ? effectiveQueryTerms.join(' ') : analysis.normalizedQuestion;
   const queryEmbedding = createHashedEmbedding(queryText, index.embeddingDimensions);
   const scoredChunks = index.chunks
     .map((chunk) => {
@@ -746,10 +813,13 @@ export async function searchResumeRag(
       }
 
       const chunkCorpus = [chunk.text, chunk.keywords.join(' ')].join(' ');
-      const lexicalOverlap = computeLexicalOverlap(analysis.searchTerms, chunkCorpus);
-      const profileOverlap = computeLexicalOverlap(analysis.searchTerms, buildSearchCorpus(profile));
+      const lexicalOverlap = computeLexicalOverlap(effectiveQueryTerms, chunkCorpus);
+      const profileOverlap = computeLexicalOverlap(
+        effectiveQueryTerms,
+        buildSearchCorpus(profile)
+      );
       const vectorScore = cosineSimilarity(queryEmbedding, chunk.embedding);
-      const facetScore = computeFacetScore(analysis.searchTerms, profile, chunk);
+      const facetScore = computeFacetScore(effectiveQueryTerms, profile, chunk);
       const sectionBoost = computeSectionBoost(analysis, chunk);
       const constraintBoost = computeConstraintBoost(
         chunk,
@@ -786,7 +856,7 @@ export async function searchResumeRag(
       if (
         score <= 0 &&
         !(analysis.queryKind === 'organization_lookup' && organizationConstraintBoost > 0) &&
-        analysis.searchTerms.length > 0
+        effectiveQueryTerms.length > 0
       ) {
         return null;
       }
@@ -798,8 +868,7 @@ export async function searchResumeRag(
       } satisfies ScoredChunk;
     })
     .filter((item): item is ScoredChunk => item !== null)
-    .sort((left, right) => right.score - left.score)
-    .slice(0, 16);
+    .sort((left, right) => right.score - left.score);
   const matches = aggregateCandidateMatches(scoredChunks, analysis);
   const citations = deduplicateCitations(matches.flatMap((match) => match.citations)).slice(0, 8);
 

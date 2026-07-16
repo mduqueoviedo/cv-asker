@@ -2,6 +2,7 @@ import type {
   ResumeRagAnswerIntent,
   ResumeRagQueryAnalysis,
   ResumeRagQueryKind,
+  ResumeRagResultScope,
 } from '../types/rag.js';
 import { normalizeSearchText, tokenizeSearchText } from './local-vectorizer.service.js';
 import { extractResumeRagQueryConcepts } from './resume-query-concepts.service.js';
@@ -27,7 +28,7 @@ function detectIntent(question: string): ResumeRagAnswerIntent {
   }
 
   if (
-    /\b(list|show|which|who|find|lista|muestra|qu[eé] candidatos|qu[eé] perfiles)\b/i.test(
+    /\b(list|show|which|who|find|all|lista|muestra|dame|todos?|todas?|qu[eé] candidatos|qu[eé] perfiles)\b/i.test(
       question
     )
   ) {
@@ -45,7 +46,36 @@ function detectTopK(question: string): number {
     return Math.min(parsed, 10);
   }
 
-  return 5;
+  return Number.NaN;
+}
+
+function detectResultScope(
+  question: string,
+  normalizedQuestion: string,
+  intent: ResumeRagAnswerIntent
+): ResumeRagResultScope {
+  if (
+    /\b(all|todos?|todas?)\b/i.test(question) &&
+    /\b(cvs?|curriculums?|curricula|resumes?|candidates?|candidatos?|profiles?|perfiles?)\b/i.test(
+      normalizedQuestion
+    )
+  ) {
+    return 'catalog';
+  }
+
+  if (
+    intent === 'list' &&
+    /\b(cvs?|curriculums?|curricula|resumes?|candidates?|candidatos?|profiles?|perfiles?)\b/i.test(
+      normalizedQuestion
+    ) &&
+    !/\b(english|ingles|ingl[eé]s|spanish|espanol|español|french|frances|franc[eé]s|german|aleman|alem[aá]n|react|java|python|backend|frontend|qa|devops)\b/i.test(
+      normalizedQuestion
+    )
+  ) {
+    return 'catalog';
+  }
+
+  return 'matching';
 }
 
 function detectLanguages(normalizedQuestion: string): string[] {
@@ -75,7 +105,7 @@ function detectQueryKind(
 ): ResumeRagQueryKind {
   if (
     detectedLanguages.length > 0 &&
-    /\b(speak|speaks|spoken|language|languages|habla|hablan|idioma|idiomas)\b/i.test(question)
+    /\b(speak|speaks|spoken|language|languages|habla|hablan|hable|hablen|idioma|idiomas)\b/i.test(question)
   ) {
     return 'language_lookup';
   }
@@ -97,9 +127,18 @@ function detectQueryKind(
   }
 
   if (
+    /\b(?:looking for|searching for|need|need a|need an|candidate|candidates|profile|profiles|busco|buscando|necesito|candidato|candidatos|perfil|perfiles)\b/i.test(
+      question
+    ) &&
+    /\b(?:with|con)\b/i.test(question)
+  ) {
+    return 'keyword_lookup';
+  }
+
+  if (
     searchTerms.length > 0 &&
     (searchTerms.length <= 3 ||
-      /\b(any|someone|somebody|who|which|find|show|hay|alguien|quien|quién|tenemos|muestra|busca)\b/i.test(
+      /\b(any|someone|somebody|who|which|find|show|hay|alguien|quien|quién|tenemos|muestra|busca|busco|buscando|looking|searching)\b/i.test(
         normalizedQuestion
       ))
   ) {
@@ -114,13 +153,16 @@ export function analyzeResumeRagQuestion(question: string): ResumeRagQueryAnalys
   const searchTerms = tokenizeSearchText(question).slice(0, 24);
   const detectedLanguages = detectLanguages(normalizedQuestion);
   const concepts = extractResumeRagQueryConcepts(question);
+  const intent = detectIntent(question);
+  const parsedTopK = detectTopK(question);
 
   return {
     originalQuestion: question,
     normalizedQuestion,
-    intent: detectIntent(question),
+    intent,
     queryKind: detectQueryKind(question, normalizedQuestion, searchTerms, detectedLanguages),
-    topK: detectTopK(question),
+    resultScope: detectResultScope(question, normalizedQuestion, intent),
+    topK: Number.isInteger(parsedTopK) && parsedTopK > 0 ? parsedTopK : null,
     searchTerms,
     concepts,
     filters: {

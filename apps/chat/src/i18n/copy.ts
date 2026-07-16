@@ -26,6 +26,8 @@ export interface UiCopy {
   thinking: string;
   noQuestionYet: string;
   topMatches: string;
+  matchesCount(count: number): string;
+  openCv: string;
   requestFailed: string;
 }
 
@@ -58,6 +60,8 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     thinking: 'Thinking...',
     noQuestionYet: 'No question asked yet.',
     topMatches: 'Best fitting CVs',
+    matchesCount: (count) => `${count} ${count === 1 ? 'profile' : 'profiles'}`,
+    openCv: 'Open full CV',
     requestFailed: 'The search could not be completed.',
   },
   es: {
@@ -88,6 +92,8 @@ export const copyByLanguage: Record<UiLanguage, UiCopy> = {
     thinking: 'Pensando...',
     noQuestionYet: 'Todavía no se ha hecho ninguna pregunta.',
     topMatches: 'Perfiles más afines',
+    matchesCount: (count) => `${count} ${count === 1 ? 'perfil' : 'perfiles'}`,
+    openCv: 'Abrir CV completo',
     requestFailed: 'No se pudo completar la consulta.',
   },
 };

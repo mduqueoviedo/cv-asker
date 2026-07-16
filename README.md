@@ -3,6 +3,7 @@
 CV Asker is a local-first prototype for screening CVs with RAG.
 
 It generates fake resumes as PDFs, parses those PDFs directly, builds a local searchable index, and lets you ask natural-language questions with grounded sources.
+The chat UI also lets you open any returned match in a new browser tab to inspect the full CV PDF.
 
 The repo is now organized as two app surfaces:
 
@@ -155,6 +156,7 @@ Notes:
 - `GET /api/ingestion/status`: dataset and index status
 - `POST /api/ingestion/index`: rebuild the local RAG index
 - `POST /api/chat/ask`: ask a grounded question
+- `GET /api/resumes/:candidateId/pdf`: open a candidate PDF directly in the browser
 - `POST /api/resumes/generate`: generate a new PDF dataset
 
 Compatibility note:

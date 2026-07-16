@@ -61,6 +61,7 @@ const SPANISH_SIGNAL_TOKENS = new Set([
   'algunos',
   'algunas',
   'ano',
+  'del',
   'quien',
   'quienes',
   'que',
@@ -68,27 +69,32 @@ const SPANISH_SIGNAL_TOKENS = new Set([
   'cuales',
   'como',
   'donde',
+  'dame',
   'en',
   'ha',
   'habla',
   'hablan',
+  'hablen',
   'idioma',
   'idiomas',
   'candidato',
   'candidatos',
   'experiencia',
+  'los',
+  'las',
   'perfil',
   'perfiles',
   'anos',
   'ano',
   'tiene',
   'tienen',
+  'todos',
+  'todas',
   'trabaja',
   'trabajado',
   'trabajar',
   'busco',
   'quiero',
-  'dame',
   'encuentra',
   'tenemos',
   'hay',
@@ -115,7 +121,8 @@ const LOCALIZED_COPY: Record<ChatLanguage, LocalizedCopy> = {
     topMatches: (question) => `Top matches for "${question}":`,
     rankingNote:
       'These results were generated from the parsed PDF content and ranked with hybrid retrieval.',
-    answerInstruction: 'Answer in English. If the evidence is insufficient, say so clearly.',
+    answerInstruction:
+      'Answer in English, using plain text only. If the evidence is insufficient, say so clearly and do not list non-matching candidates.',
   },
   es: {
     unknown: 'Desconocido',
@@ -138,13 +145,13 @@ const LOCALIZED_COPY: Record<ChatLanguage, LocalizedCopy> = {
     rankingNote:
       'Estos resultados se han generado a partir del contenido extraído de los PDF y se han ordenado mediante recuperación híbrida.',
     answerInstruction:
-      'Responde en español. Si la evidencia no basta, dilo con claridad.',
+      'Responde en español y en texto plano. Si la evidencia no basta, dilo con claridad y no enumeres candidatos que no cumplan.',
   },
 };
 
 const NEGATIVE_ANSWER_PATTERNS = {
-  en: /\b(i cannot determine|i could not find|i couldn't find|no candidates?|no matching|no strong matches|not enough evidence|none of the available resumes|the resumes do not indicate)\b/i,
-  es: /\b(no he encontrado|no encuentro|no puedo determinar|no hay candidatos|no hay perfiles|la evidencia no basta|los cvs no indican)\b/i,
+  en: /\b(i cannot determine|i could not find|i couldn't find|no candidates?|no matching|no strong matches|not enough evidence|evidence is insufficient|none of the available resumes|the resumes do not indicate)\b/i,
+  es: /\b(no he encontrado|no encuentro|no puedo determinar|no hay candidatos|no hay perfiles|la evidencia no basta|la evidencia no es suficiente|los cvs no indican)\b/i,
 } satisfies Record<ChatLanguage, RegExp>;
 
 const QUERY_META_TOKENS = new Set([
@@ -162,6 +169,7 @@ const QUERY_META_TOKENS = new Set([
   'cual',
   'cuales',
   'donde',
+  'estoy',
   'empresa',
   'empresas',
   'experience',
@@ -176,6 +184,7 @@ const QUERY_META_TOKENS = new Set([
   'languages',
   'lista',
   'list',
+  'looking',
   'muestra',
   'perfil',
   'perfiles',
@@ -189,11 +198,13 @@ const QUERY_META_TOKENS = new Set([
   'speak',
   'speaks',
   'stack',
+  'searching',
   'technology',
   'technologies',
   'tenemos',
   'tool',
   'tools',
+  'buscando',
   'worked',
   'working',
 ]);
@@ -235,18 +246,6 @@ function detectQuestionLanguage(question: string): ChatLanguage {
 
 function getLocalizedCopy(language: ChatLanguage): LocalizedCopy {
   return LOCALIZED_COPY[language];
-}
-
-function shouldShowMatches(
-  answer: string,
-  matches: ResumeRagCandidateMatch[],
-  language: ChatLanguage
-): boolean {
-  if (matches.length === 0) {
-    return false;
-  }
-
-  return !NEGATIVE_ANSWER_PATTERNS[language].test(answer);
 }
 
 function formatYearsValue(years: number, language: ChatLanguage): string {
@@ -336,7 +335,11 @@ function formatLanguageList(languages: string[], language: ChatLanguage): string
 }
 
 function formatQuestionFocus(analysis: ResumeRagQueryAnalysis): string | null {
-  const focusTerms = analysis.searchTerms.filter((term) => !QUERY_META_TOKENS.has(term)).slice(0, 4);
+  const focusTerms = analysis.searchTerms
+    .filter((term) => !QUERY_META_TOKENS.has(term))
+    .map((term) => term.replace(/^[^a-z0-9+#]+|[^a-z0-9+#]+$/gi, ''))
+    .filter(Boolean)
+    .slice(0, 4);
 
   if (focusTerms.length === 0) {
     return null;
@@ -348,6 +351,19 @@ function formatQuestionFocus(analysis: ResumeRagQueryAnalysis): string | null {
 function stripInlineCitationLabels(answer: string): string {
   return answer
     .replace(/\s*\[[^\[\]\n:]+:[^\[\]\n]+\]/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function sanitizePlainTextAnswer(answer: string): string {
+  return answer
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -564,12 +580,39 @@ function createNaturalNoMatchesAnswer(
   return copy.noMatches(question);
 }
 
+function createCatalogAnswer(matches: ResumeRagCandidateMatch[], language: ChatLanguage): string {
+  if (language === 'es') {
+    return matches.length === 1
+      ? 'He encontrado 1 CV en el sistema y te lo muestro a continuación.'
+      : `He encontrado ${matches.length} CVs en el sistema y te los muestro a continuación.`;
+  }
+
+  return matches.length === 1
+    ? 'I found 1 CV in the system and I am showing it below.'
+    : `I found ${matches.length} CVs in the system and I am showing them below.`;
+}
+
+function shouldUseExhaustiveListAnswer(
+  matches: ResumeRagCandidateMatch[],
+  analysis: ResumeRagQueryAnalysis
+): boolean {
+  if (analysis.resultScope === 'catalog') {
+    return true;
+  }
+
+  return analysis.topK === null && matches.length > 3;
+}
+
 function createFallbackAnswer(
   question: string,
   matches: ResumeRagCandidateMatch[],
   analysis: ResumeRagQueryAnalysis,
   language: ChatLanguage
 ): string {
+  if (analysis.resultScope === 'catalog') {
+    return createCatalogAnswer(matches, language);
+  }
+
   const candidateSpecificBooleanAnswer = createCandidateSpecificBooleanAnswer(
     question,
     matches,
@@ -583,6 +626,12 @@ function createFallbackAnswer(
 
   if (matches.length === 0) {
     return createNaturalNoMatchesAnswer(question, analysis, language);
+  }
+
+  if (shouldUseExhaustiveListAnswer(matches, analysis)) {
+    return language === 'es'
+      ? `He encontrado ${matches.length} perfiles relevantes para "${question}". Te muestro la lista completa debajo.`
+      : `I found ${matches.length} relevant profiles for "${question}". I am showing the full list below.`;
   }
 
   if (language === 'es' && /\b(tenemos|hay)\b.*\b(algun|alguna|alguno|algunos|algunas)\b/i.test(normalizeSearchText(question))) {
@@ -617,13 +666,50 @@ function createFallbackAnswer(
     return `${index + 1}. ${match.fullName} - ${match.primaryRole} (${experienceLabel})`;
   });
 
-  const summary = [copy.topMatches(question), ...lines];
+  const summary = [
+    language === 'es'
+      ? `He encontrado ${matches.length} perfiles relevantes para "${question}".`
+      : `I found ${matches.length} relevant profiles for "${question}".`,
+    ...lines,
+  ];
 
   if (matches.length > 0) {
     summary.push('', copy.rankingNote);
   }
 
   return summary.join('\n');
+}
+
+function finalizeAnswer(
+  rawAnswer: string,
+  question: string,
+  matches: ResumeRagCandidateMatch[],
+  analysis: ResumeRagQueryAnalysis,
+  language: ChatLanguage
+): { answer: string; showMatches: boolean; matches: ResumeRagCandidateMatch[] } {
+  const sanitizedAnswer = sanitizePlainTextAnswer(stripInlineCitationLabels(rawAnswer));
+
+  if (matches.length === 0) {
+    return {
+      answer: sanitizedAnswer,
+      showMatches: false,
+      matches: [],
+    };
+  }
+
+  if (NEGATIVE_ANSWER_PATTERNS[language].test(sanitizedAnswer)) {
+    return {
+      answer: createNaturalNoMatchesAnswer(question, analysis, language),
+      showMatches: false,
+      matches: [],
+    };
+  }
+
+  return {
+    answer: sanitizedAnswer,
+    showMatches: true,
+    matches,
+  };
 }
 
 async function generateGroundedAnswer(
@@ -641,9 +727,11 @@ async function generateGroundedAnswer(
     model,
     maxTokens: resumeGenerationConfig.rag.answering.maxTokens,
     systemInstruction:
-      'You are CV Asker. Answer only from the provided resume evidence. Be concise, practical, and explicit about uncertainty. The source CVs may be in different languages. Do not include internal chunk identifiers, bracketed references, or raw citation labels in the final answer.',
+      'You are CV Asker. Answer only from the provided resume evidence. Be concise, practical, and explicit about uncertainty. The source CVs may be in different languages. Write plain text only. Do not use markdown, bullet lists, numbered lists, or bold formatting. Do not include internal chunk identifiers, bracketed references, or raw citation labels in the final answer. If no candidate clearly satisfies the question, say so directly and do not enumerate non-matching candidates. When many matches exist and the UI shows them separately, do not mention only a small subset unless the user explicitly asked for top or best results.',
     prompt: [
       `Question:\n${question}`,
+      '',
+      `Total matching candidates: ${matches.length}`,
       '',
       'Resume evidence:',
       context,
@@ -671,6 +759,24 @@ export async function answerResumeRagQuestion(
     responseLanguage
   );
 
+  if (shouldUseExhaustiveListAnswer(result.matches, result.analysis)) {
+    const answer = createFallbackAnswer(question, result.matches, result.analysis, responseLanguage);
+
+    return {
+      source: result.index.source,
+      datasetId: result.index.datasetId,
+      builtAt: result.index.builtAt,
+      question,
+      responseLanguage,
+      answer: sanitizePlainTextAnswer(answer),
+      showMatches: true,
+      analysis: result.analysis,
+      citations: [],
+      matches: result.matches,
+      model: null,
+    };
+  }
+
   if (result.matches.length === 0) {
     const answer = createFallbackAnswer(question, result.matches, result.analysis, responseLanguage);
 
@@ -680,7 +786,7 @@ export async function answerResumeRagQuestion(
       builtAt: result.index.builtAt,
       question,
       responseLanguage,
-      answer,
+      answer: sanitizePlainTextAnswer(answer),
       showMatches: false,
       analysis: result.analysis,
       citations: [],
@@ -690,9 +796,11 @@ export async function answerResumeRagQuestion(
   }
 
   if (deterministicCandidateAnswer) {
-    const showMatches = shouldShowMatches(
+    const finalized = finalizeAnswer(
       deterministicCandidateAnswer,
+      question,
       result.matches,
+      result.analysis,
       responseLanguage
     );
 
@@ -702,18 +810,24 @@ export async function answerResumeRagQuestion(
       builtAt: result.index.builtAt,
       question,
       responseLanguage,
-      answer: deterministicCandidateAnswer,
-      showMatches,
+      answer: finalized.answer,
+      showMatches: finalized.showMatches,
       analysis: result.analysis,
-      citations: result.citations,
-      matches: showMatches ? result.matches : [],
+      citations: finalized.showMatches ? result.citations : [],
+      matches: finalized.matches,
       model: null,
     };
   }
 
   if (!hasOpenRouterApiKey()) {
     const answer = createFallbackAnswer(question, result.matches, result.analysis, responseLanguage);
-    const showMatches = shouldShowMatches(answer, result.matches, responseLanguage);
+    const finalized = finalizeAnswer(
+      answer,
+      question,
+      result.matches,
+      result.analysis,
+      responseLanguage
+    );
 
     return {
       source: result.index.source,
@@ -721,18 +835,24 @@ export async function answerResumeRagQuestion(
       builtAt: result.index.builtAt,
       question,
       responseLanguage,
-      answer,
-      showMatches,
+      answer: finalized.answer,
+      showMatches: finalized.showMatches,
       analysis: result.analysis,
-      citations: result.citations,
-      matches: showMatches ? result.matches : [],
+      citations: finalized.showMatches ? result.citations : [],
+      matches: finalized.matches,
       model: null,
     };
   }
 
   try {
     const completion = await generateGroundedAnswer(question, result.matches, responseLanguage);
-    const showMatches = shouldShowMatches(completion.answer, result.matches, responseLanguage);
+    const finalized = finalizeAnswer(
+      completion.answer,
+      question,
+      result.matches,
+      result.analysis,
+      responseLanguage
+    );
 
     return {
       source: result.index.source,
@@ -740,11 +860,11 @@ export async function answerResumeRagQuestion(
       builtAt: result.index.builtAt,
       question,
       responseLanguage,
-      answer: completion.answer,
-      showMatches,
+      answer: finalized.answer,
+      showMatches: finalized.showMatches,
       analysis: result.analysis,
-      citations: result.citations,
-      matches: showMatches ? result.matches : [],
+      citations: finalized.showMatches ? result.citations : [],
+      matches: finalized.matches,
       model: completion.model,
     };
   } catch (error) {
@@ -755,7 +875,13 @@ export async function answerResumeRagQuestion(
     );
 
     const answer = createFallbackAnswer(question, result.matches, result.analysis, responseLanguage);
-    const showMatches = shouldShowMatches(answer, result.matches, responseLanguage);
+    const finalized = finalizeAnswer(
+      answer,
+      question,
+      result.matches,
+      result.analysis,
+      responseLanguage
+    );
 
     return {
       source: result.index.source,
@@ -763,11 +889,11 @@ export async function answerResumeRagQuestion(
       builtAt: result.index.builtAt,
       question,
       responseLanguage,
-      answer,
-      showMatches,
+      answer: finalized.answer,
+      showMatches: finalized.showMatches,
       analysis: result.analysis,
-      citations: result.citations,
-      matches: showMatches ? result.matches : [],
+      citations: finalized.showMatches ? result.citations : [],
+      matches: finalized.matches,
       model: null,
     };
   }

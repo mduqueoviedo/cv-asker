@@ -127,7 +127,7 @@ At runtime:
 
 - `apps/chat` is built as static assets
 - `apps/api` serves those assets at `/chat`
-- the UI calls `/api/ingestion/*`, `/api/chat/*`, and the legacy `/api/rag/*` aliases if needed
+- the UI calls `/api/ingestion/*`, `/api/chat/*`, `/api/resumes/:candidateId/pdf`, and the legacy `/api/rag/*` aliases if needed
 
 ## Validation Strategy
 

@@ -1,3 +1,5 @@
+import { access } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import { Router, type RequestHandler } from 'express';
 import { answerResumeRagQuestion } from '../modules/chat/services/chat-answer.service.js';
 import {
@@ -11,6 +13,7 @@ import type {
 } from '../modules/cv-generation/types/resume.js';
 import {
   buildResumeRagIndex,
+  ensureResumeRagIndex,
   getResumeRagStatus,
 } from '../modules/cv-ingestion/services/cv-ingestion-index.service.js';
 
@@ -24,6 +27,10 @@ interface BuildRagIndexRequestBody {
 interface AskChatQuestionRequestBody {
   question?: string;
   forceRebuild?: boolean;
+}
+
+interface ResumePdfRouteParams {
+  candidateId: string;
 }
 
 interface GenerateResumeRequestBody {
@@ -143,14 +150,57 @@ const askChatQuestionHandler: RequestHandler<
 
     response.json({
       success: true,
-      result,
+      result: {
+        ...result,
+        matches: result.matches.map((match) => ({
+          ...match,
+          resumeUrl: `/api/resumes/${encodeURIComponent(match.candidateId)}/pdf`,
+        })),
+      },
     });
   } catch (error) {
     next(error);
   }
 };
 
+const getResumePdfHandler: RequestHandler<ResumePdfRouteParams> = async (
+  request,
+  response,
+  next
+) => {
+  try {
+    const candidateId = request.params.candidateId?.trim();
+
+    if (!candidateId) {
+      response.status(400).json({
+        success: false,
+        error: 'A candidate id is required.',
+      });
+      return;
+    }
+
+    const index = await ensureResumeRagIndex();
+    const candidate = index.candidates.find((item) => item.candidateId === candidateId);
+
+    if (!candidate) {
+      response.status(404).json({
+        success: false,
+        error: 'The requested candidate PDF was not found.',
+      });
+      return;
+    }
+
+    await access(candidate.pdfFilePath, fsConstants.R_OK);
+    response.setHeader('Content-Disposition', `inline; filename="${candidate.pdfFileName}"`);
+    response.setHeader('Cache-Control', 'no-store');
+    response.sendFile(candidate.pdfFilePath);
+  } catch (error) {
+    next(error);
+  }
+};
+
 apiRouter.get('/resumes', getResumeDatasetStatusHandler);
+apiRouter.get('/resumes/:candidateId/pdf', getResumePdfHandler);
 apiRouter.post('/resumes/generate', generateResumeDatasetHandler);
 apiRouter.get('/ingestion', getCvIngestionStatusHandler);
 apiRouter.get('/ingestion/status', getCvIngestionStatusHandler);

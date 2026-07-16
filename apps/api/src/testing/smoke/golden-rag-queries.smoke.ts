@@ -197,6 +197,63 @@ async function runBackendEnglishQuery() {
   );
 }
 
+async function runBroadEnglishLanguageQuery() {
+  process.env.OPENROUTER_API_KEY = '';
+  const result = await answerResumeRagQuestion('Busco candidatos que hablen inglés.', {
+    forceRebuild: false,
+  });
+  const searchResult = await searchResumeRag('Busco candidatos que hablen inglés.', {
+    forceRebuild: false,
+  });
+  const expectedEnglishCandidateCount = searchResult.index.candidates.filter((candidate) =>
+    /\benglish\b|\bingles\b/.test(normalizeEvidence(candidate.languages.join(' ')))
+  ).length;
+
+  assert.equal(result.responseLanguage, 'es');
+  assert.equal(result.showMatches, true);
+  assert.ok(result.matches.length >= 3, 'Expected several English-speaking matches.');
+  assert.equal(
+    result.matches.length,
+    expectedEnglishCandidateCount,
+    'Expected the query to return every English-speaking candidate in the dataset.'
+  );
+
+  for (const match of result.matches) {
+    const languageEvidence = normalizeEvidence(match.languages.join(' '));
+    assert.match(languageEvidence, /\benglish\b|\bingles\b/);
+  }
+
+  console.log(
+    `[Golden RAG] OK broad-english-language-query matches=${result.matches
+      .map((match) => match.candidateId)
+      .join(', ')}`
+  );
+}
+
+async function runCatalogAllCvsQuery() {
+  process.env.OPENROUTER_API_KEY = '';
+  const result = await answerResumeRagQuestion('Dame todos los CVs del sistema.', {
+    forceRebuild: false,
+  });
+  const searchResult = await searchResumeRag('Dame todos los CVs del sistema.', {
+    forceRebuild: false,
+  });
+
+  assert.equal(result.responseLanguage, 'es');
+  assert.equal(result.showMatches, true);
+  assert.equal(
+    result.matches.length,
+    searchResult.index.candidateCount,
+    'Expected the full catalog query to return every stored CV.'
+  );
+  assert.match(result.answer, /He encontrado \d+ CVs en el sistema/i);
+  console.log(
+    `[Golden RAG] OK catalog-all-cvs-query matches=${result.matches
+      .map((match) => match.candidateId)
+      .join(', ')}`
+  );
+}
+
 async function runQaRoleQuery() {
   const result = await searchResumeRag('Quién tiene experiencia en QA?', {
     forceRebuild: false,
@@ -264,6 +321,20 @@ async function runCloudDomainQuery() {
   );
 }
 
+async function runJavaNegativeQuery() {
+  process.env.OPENROUTER_API_KEY = '';
+  const result = await answerResumeRagQuestion('Estoy buscando candidatos con Java.', {
+    forceRebuild: false,
+  });
+
+  assert.equal(result.responseLanguage, 'es');
+  assert.equal(result.showMatches, false);
+  assert.equal(result.matches.length, 0);
+  assert.match(result.answer, /No he encontrado perfiles/i);
+  assert.match(result.answer, /java/i);
+  console.log('[Golden RAG] OK java-negative-query');
+}
+
 async function main() {
   await runChineseNegativeQuery();
   await runMarcosLookupQuery();
@@ -274,9 +345,12 @@ async function main() {
   await runCandidateLanguageConfirmationQuery();
   await runFrontendFrenchQuery();
   await runBackendEnglishQuery();
+  await runBroadEnglishLanguageQuery();
+  await runCatalogAllCvsQuery();
   await runQaRoleQuery();
   await runReactStackQuery();
   await runCloudDomainQuery();
+  await runJavaNegativeQuery();
 }
 
 main().catch((error) => {
