@@ -120,7 +120,8 @@ At the HTTP layer, the code stays intentionally thin:
 4. The normalized text is split into sections such as summary, experience, education, languages, and skills.
 5. Those sections are chunked and combined with structured signals inferred from the same PDF text.
 6. A local searchable index is built from chunks plus inferred candidate facets.
-7. User questions are answered through hybrid retrieval and grounded response generation, with source excerpts attached.
+7. User questions are first normalized into structured retrieval signals through a hybrid parser.
+8. Those signals drive hybrid retrieval and grounded response generation, with source excerpts attached.
 
 At runtime:
 
@@ -166,16 +167,17 @@ This keeps the default validation loop fast, local-first, and easier to explain 
 
 The current RAG layer combines:
 
+- hybrid question analysis: deterministic heuristics plus structured LLM normalization
 - local hashed-vector similarity over chunk text
 - lexical overlap on query terms
 - lightweight structured filters such as languages and minimum experience
 - section-aware boosts for experience, education, certifications, and skills
 
-If the remote LLM is unavailable, the system returns a deterministic local fallback answer instead of failing hard.
+If the remote LLM is unavailable, the question-analysis step falls back to the deterministic heuristic parser and the answer layer still falls back to a deterministic local response instead of failing hard.
 
 ## Parsing Strategy
 
-The parser is heuristic-based and intentionally generic.
+The ingestion parser is heuristic-based and intentionally generic.
 
 It relies on:
 
@@ -188,6 +190,13 @@ It relies on:
 
 This is meant to generalize beyond software CVs, although very unusual PDF layouts may still need tuning.
 
+For user questions, the system now uses a hybrid strategy:
+
+- a deterministic local analyzer extracts intent, query kind, result scope, top-K hints, languages, minimum experience, and concept matches
+- an LLM then optionally normalizes the same question into the same structured shape when OpenRouter is available
+- the retrieval layer merges both analyses conservatively, keeping the local heuristics as the safety net
+- if the LLM parse fails or is unavailable, retrieval continues with the local analysis only
+
 ## Main Configuration
 
 The main product configuration lives in:
@@ -199,6 +208,7 @@ That file centralizes:
 - resume generation defaults
 - fallback text-generation models
 - image-generation settings
+- RAG query parsing model
 - RAG answer model
 - retry and timeout settings
 

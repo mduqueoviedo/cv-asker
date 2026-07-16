@@ -55,6 +55,10 @@ export const resumeGenerationConfig = {
     baseDelayMs: 600,
   },
   rag: {
+    queryParsing: {
+      defaultModel: 'google/gemini-2.5-flash',
+      maxTokens: 280,
+    },
     answering: {
       defaultModel: 'google/gemini-2.5-flash',
       maxTokens: 500,

@@ -35,6 +35,7 @@ Build an AI-powered CV screener that allows a user to ask natural-language quest
 - Text must be chunked and stored in an embedded vector storage layer suitable for local development.
 - Each chunk must preserve source-document references and any structured candidate metadata inferred from the parsed PDF content.
 - Retrieval must support both semantic similarity search and rigid quantitative filtering.
+- Question analysis may combine deterministic parsing with LLM-based normalization as long as the retrieval remains grounded in resume evidence.
 - LLM answers should be grounded in resume data only whenever feasible.
 
 ### 3.3 Chat Experience

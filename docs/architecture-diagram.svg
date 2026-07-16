@@ -131,10 +131,10 @@
     </text>
 
     <rect x="1114" y="528" width="398" height="92" rx="22" class="node"/>
-    <text x="1140" y="564" class="node-title">Hybrid Retrieval plus Grounded Answer</text>
+    <text x="1140" y="564" class="node-title">Hybrid Query Parsing, Retrieval, and Answer</text>
     <text x="1140" y="584" class="node-copy">
-      <tspan x="1140" dy="0">Semantic and lexical search feed the LLM</tspan>
-      <tspan x="1140" dy="18">with relevant resume context.</tspan>
+      <tspan x="1140" dy="0">Heuristic plus LLM query parsing drives</tspan>
+      <tspan x="1140" dy="18">retrieval and grounded answer generation.</tspan>
     </text>
 
     <rect x="1114" y="648" width="398" height="56" rx="18" class="node"/>
