@@ -57,10 +57,7 @@ export function renderMatches(
   container.appendChild(summary);
 
   for (const match of matches) {
-    const card =
-      match.resumeUrl
-        ? createElement('a', 'match match-link')
-        : createElement('article', 'match');
+    const card = createElement('article', 'match');
     const title = createElement('strong', undefined, match.fullName);
     const role = createElement(
       'div',
@@ -75,16 +72,20 @@ export function renderMatches(
       'meta',
       match.languages.length > 0 ? match.languages.join(', ') : '—'
     );
-    const openLine = createElement('div', 'meta match-cta', copy.openCv);
 
-    if (card instanceof HTMLAnchorElement && match.resumeUrl) {
-      card.href = match.resumeUrl;
-      card.target = '_blank';
-      card.rel = 'noopener noreferrer';
-      card.title = copy.openCv;
+    card.append(title, role, languagesLine);
+
+    if (match.resumeUrl) {
+      const actions = createElement('div', 'match-actions');
+      const openLink = createElement('a', 'match-open-link', copy.openCv);
+      openLink.href = match.resumeUrl;
+      openLink.target = '_blank';
+      openLink.rel = 'noopener noreferrer';
+      openLink.title = copy.openCv;
+      actions.appendChild(openLink);
+      card.appendChild(actions);
     }
 
-    card.append(title, role, languagesLine, openLine);
     container.appendChild(card);
   }
 }
