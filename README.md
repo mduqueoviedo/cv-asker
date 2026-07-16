@@ -2,7 +2,12 @@
 
 CV Asker is a local-first prototype for screening CVs with RAG.
 
-This branch contains the headless RAG foundation: resume generation, PDF parsing, indexing, retrieval, and grounded answering from the command line.
+It generates fake resumes as PDFs, parses those PDFs directly, builds a local searchable index, and lets you ask natural-language questions with grounded sources.
+
+The repo is now organized as two app surfaces:
+
+- `apps/api`: Express API plus resume generation and ingestion pipeline
+- `apps/chat`: Vite + Vanilla TypeScript chat UI served by the API at `/chat`
 
 ## What It Does
 
@@ -12,7 +17,18 @@ The current flow is:
 2. Parse the PDFs directly.
 3. Normalize and split the text into sections and chunks.
 4. Build a local RAG index.
-5. Answer questions against that dataset with grounded sources.
+5. Answer questions against that dataset from `/chat` or the API.
+
+Inside the API, the code is grouped by domain:
+
+- `cv-generation`: fake CV dataset creation
+- `cv-ingestion`: PDF extraction, normalization, chunking, indexing, retrieval
+- `chat`: question answering and chat-facing endpoints
+
+There are two practical modes:
+
+- demo mode: generate resumes with the app
+- utility mode: drop real PDF CVs into `storage/imported-resumes/pdfs`
 
 Important rule:
 
@@ -29,22 +45,67 @@ Important rule:
 pnpm generate
 ```
 
-4. Build the local index:
+4. Start the app:
 
 ```bash
-pnpm rag:index
+pnpm dev
 ```
 
-5. Ask a question:
+5. Open:
+
+```text
+http://localhost:3000/chat
+```
+
+That is the shortest end-to-end path.
+
+## Using Real CV PDFs
+
+If you want to skip generation and use a real batch of CVs:
+
+1. Put the PDF files in:
+
+```text
+storage/imported-resumes/pdfs
+```
+
+2. Start the app:
 
 ```bash
-pnpm rag:ask -- "Which candidates speak English and have backend experience?"
+pnpm dev
+```
+
+3. Open `/chat` or call `/api/rag/ask`
+
+If PDFs are detected in that folder, the RAG layer will use them automatically.
+If not, it falls back to the generated dataset.
+
+## Repository Shape
+
+```text
+apps/
+  api/
+    scripts/
+    src/
+      app/
+      modules/
+        chat/
+        cv-generation/
+        cv-ingestion/
+      shared/
+  chat/
+    src/
+      api/
+      components/
+      i18n/
+      styles/
 ```
 
 ## Main Commands
 
 ```bash
 pnpm generate
+pnpm dev
 pnpm build
 pnpm rag:index
 pnpm rag:ask -- "Which candidates speak English and have backend experience?"
@@ -53,15 +114,65 @@ pnpm rag:ask -- "Which candidates speak English and have backend experience?"
 Useful extra checks:
 
 ```bash
-pnpm extract:text
-pnpm extract:text:file -- /path/to/any-cv.pdf
+pnpm test:smoke
+pnpm smoke:extract
+pnpm smoke:extract:file -- /path/to/any-cv.pdf
 ```
+
+## Smoke Tests
+
+The repo includes a very small smoke-testing layer under:
+
+- `apps/api/src/testing/smoke`
+
+These are not unit tests. They are operational checks for the main flows we care about while iterating on the product:
+
+- extraction
+- index building
+- local HTTP integration
+- optional grounded asking
+- optional dataset generation
+
+Main commands:
+
+```bash
+pnpm test:smoke
+pnpm test:smoke:http
+pnpm test:smoke:ai
+pnpm test:smoke:full
+```
+
+What each one does:
+
+- `pnpm test:smoke`: safe baseline suite, focused on local checks
+- `pnpm test:smoke:http`: baseline suite plus local HTTP integration
+- `pnpm test:smoke:ai`: baseline suite plus a chat-answer smoke
+- `pnpm test:smoke:full`: includes generation before the rest of the suite
+
+Notes:
+
+- Dataset-dependent smokes are skipped automatically if no generated or imported dataset is available.
+- The HTTP smoke opens a local port, so it is separated from the default baseline suite.
+- The AI-oriented smokes may call the configured LLM provider if credentials are present.
+- Legacy commands like `pnpm rag:index` and `pnpm rag:ask` still work as aliases.
+
+## Main Endpoints
+
+- `GET /chat`: Vite-built chat UI served by Express
+- `GET /api/ingestion/status`: dataset and index status
+- `POST /api/ingestion/index`: rebuild the local RAG index
+- `POST /api/chat/ask`: ask a grounded question
+- `POST /api/resumes/generate`: generate a new PDF dataset
+
+Compatibility note:
+
+- The previous `/api/rag/*` endpoints are still available as aliases.
 
 ## Configuration
 
 The main knobs are centralized in:
 
-- `src/config/resume-generation.ts`
+- `apps/api/src/shared/config/resume-generation.ts`
 
 This is where you can quickly change:
 
@@ -71,9 +182,15 @@ This is where you can quickly change:
 - RAG answer model
 - retry and timeout settings
 
-For grounded answers we now use a dedicated config entry:
+For the chat/RAG answers we now use a dedicated config entry:
 
 - `resumeGenerationConfig.rag.answering.defaultModel`
+
+Right now it is set to:
+
+- `google/gemini-2.5-flash`
+
+If you want to switch the paid Gemini model later, that is the main place to change it.
 
 ## Source Of Truth
 

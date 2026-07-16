@@ -1,6 +1,6 @@
 # CV Asker Architecture
 
-This document describes the implemented end-to-end flow of CV Asker.
+This document describes the implemented end-to-end flow of CV Asker and the current repository organization.
 
 ## Core Rule
 
@@ -12,18 +12,38 @@ This document describes the implemented end-to-end flow of CV Asker.
 
 ```mermaid
 flowchart LR
-    A[Resume Generation] --> B[PDF Resume Dataset]
-    B --> C[PDF Text Extraction]
-    C --> D[Text Normalization]
-    D --> E[Section Parsing]
-    E --> F[Chunking]
+    A[cv-generation] --> B[PDF Resume Dataset]
+    B --> C[cv-ingestion]
+    C --> D[PDF Text Extraction]
+    D --> E[Text Normalization]
+    E --> F[Section Parsing and Chunking]
     E --> G[Structured Inference]
     F --> H[Local RAG Index]
     G --> H
-    H --> I[Hybrid Retrieval]
+    H --> I[chat]
     I --> J[Grounded Answer]
-    J --> K[CLI answers and future consumers]
+    J --> K[/chat and /api/chat/ask]
 ```
+
+## Repository Structure
+
+The project is still one deployable system, but it is organized as a modular monolith.
+
+```text
+apps/
+  api/
+    src/
+      app/        # Express bootstrap and top-level routing
+      modules/
+        cv-generation/
+        cv-ingestion/
+        chat/
+      shared/     # AI clients, shared config, shared low-level types
+  chat/
+    src/          # Vite + Vanilla TypeScript UI
+```
+
+This separation keeps the three product areas visible without splitting them into separate services too early.
 
 ## Runtime Flow
 
@@ -34,6 +54,44 @@ flowchart LR
 5. Those sections are chunked and combined with structured signals inferred from the same PDF text.
 6. A local searchable index is built from chunks plus inferred candidate facets.
 7. User questions are answered through hybrid retrieval and grounded response generation, with source excerpts attached.
+
+At runtime:
+
+- `apps/chat` is built as static assets
+- `apps/api` serves those assets at `/chat`
+- the UI calls `/api/ingestion/*`, `/api/chat/*`, and the legacy `/api/rag/*` aliases if needed
+
+## Validation Strategy
+
+The project uses a very small smoke-testing layer instead of a broader automated test suite.
+
+The goal is practical validation of the critical product flows while the codebase is still evolving quickly:
+
+- build and typecheck still work
+- CV extraction still works against the current dataset
+- RAG indexing still completes successfully
+- local HTTP integration can still be checked when needed
+- grounded asking can still be checked when AI credentials are available
+
+The smoke tests live in:
+
+- `apps/api/src/testing/smoke`
+
+The main entry points are:
+
+- `pnpm test:smoke`
+- `pnpm test:smoke:http`
+- `pnpm test:smoke:ai`
+- `pnpm test:smoke:full`
+
+The default baseline is `pnpm test:smoke`.
+
+That baseline is intentionally conservative:
+
+- it avoids the HTTP smoke by default because opening a local port depends on the environment
+- it avoids the AI smoke by default because that may call the configured external LLM provider
+
+This keeps the default validation loop fast, local-first, and easier to explain in demos or reviews.
 
 ## Retrieval Model
 
@@ -65,7 +123,7 @@ This is meant to generalize beyond software CVs, although very unusual PDF layou
 
 The main product configuration lives in:
 
-- `src/config/resume-generation.ts`
+- `apps/api/src/shared/config/resume-generation.ts`
 
 That file centralizes:
 

@@ -1,0 +1,174 @@
+.card {
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow,
+.pill {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+}
+
+.sidebar h1,
+.result h2 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+.sidebar h1 {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.result h2 {
+  font-size: 30px;
+}
+
+.sidebar-copy,
+.hint,
+.meta {
+  color: var(--muted);
+}
+
+.sidebar-copy,
+.answer {
+  line-height: 1.62;
+}
+
+.status-panel,
+.composer,
+.match,
+.citation {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+}
+
+.status-panel {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+}
+
+.status-row {
+  padding: 6px 0;
+  font-size: 14px;
+}
+
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.language-switcher select {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-strong);
+  color: var(--ink);
+  font-weight: 700;
+  padding: 8px 12px;
+  outline: none;
+}
+
+.sidebar-actions {
+  margin-top: 16px;
+}
+
+.composer,
+.result {
+  padding: 18px 20px 22px;
+  border-radius: 22px;
+}
+
+.composer-heading {
+  margin-bottom: 10px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 132px;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 700;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
+.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: white;
+}
+
+.secondary {
+  background: white;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.answer {
+  white-space: pre-wrap;
+}
+
+.matches,
+.citations {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.match,
+.citation {
+  padding: 14px;
+  border-radius: var(--radius-md);
+}
+
+.meta {
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.empty {
+  color: var(--muted);
+  font-style: italic;
+}

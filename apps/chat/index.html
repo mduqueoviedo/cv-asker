@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CV Asker</title>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="card sidebar">
+        <div class="sidebar-top">
+          <div>
+            <p class="eyebrow" id="eyebrowLabel">Search CVs</p>
+            <h1>CV Asker</h1>
+          </div>
+          <label class="language-switcher" for="uiLanguage">
+            <span id="languageLabel">UI</span>
+            <select id="uiLanguage">
+              <option value="es">ES</option>
+              <option value="en">EN</option>
+            </select>
+          </label>
+        </div>
+
+        <p class="sidebar-copy" id="sidebarDescription">
+          Ask about the CVs that are currently loaded. The app uses your PDFs automatically when
+          they are available.
+        </p>
+
+        <section class="status-panel">
+          <div class="status-row">
+            <span id="sourceLabel">CV source</span>
+            <strong id="sourceState">Loading...</strong>
+          </div>
+          <div class="status-row">
+            <span id="statusLabel">Status</span>
+            <strong id="readinessState">Loading...</strong>
+          </div>
+          <div class="status-row">
+            <span id="cvCountLabel">CVs loaded</span>
+            <strong id="candidateCount">-</strong>
+          </div>
+        </section>
+
+        <p class="hint" id="statusHint">
+          Place PDFs in `storage/imported-resumes/pdfs` to use your own CVs.
+        </p>
+
+        <div class="sidebar-actions">
+          <button class="secondary" id="reindexButton" type="button">Refresh CVs</button>
+        </div>
+      </aside>
+
+      <main class="card workspace">
+        <section class="composer">
+          <div class="composer-heading">
+            <span class="pill" id="composerPill">Ask the dataset</span>
+          </div>
+          <textarea
+            id="questionInput"
+            placeholder="Example: Which candidates speak German and have more than 4 years of experience with backend systems?"
+          ></textarea>
+          <div class="actions">
+            <div class="hint" id="composerHint">
+              Press Enter to send. Use Shift+Enter for a new line.
+            </div>
+            <button class="primary" id="askButton" type="button">Ask</button>
+          </div>
+        </section>
+
+        <section class="result">
+          <div class="result-header">
+            <span class="pill" id="resultPill">Answer</span>
+            <h2 id="resultTitle">Ready</h2>
+          </div>
+          <div class="answer empty" id="answerOutput">No question asked yet.</div>
+          <div class="matches" id="matches"></div>
+          <div class="citations" id="citations"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
