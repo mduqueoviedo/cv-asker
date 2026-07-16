@@ -10,19 +10,38 @@ This document describes the implemented end-to-end flow of CV Asker and the curr
 
 ## System Diagram
 
+Static SVG version:
+
+- `docs/architecture-diagram.svg`
+
 ```mermaid
 flowchart LR
-    A[cv-generation] --> B[PDF Resume Dataset]
-    B --> C[cv-ingestion]
-    C --> D[PDF Text Extraction]
-    D --> E[Text Normalization]
-    E --> F[Section Parsing and Chunking]
-    E --> G[Structured Inference]
-    F --> H[Local RAG Index]
-    G --> H
-    H --> I[chat]
-    I --> J[Grounded Answer]
-    J --> K[/chat and /api/chat/ask]
+    subgraph GEN[1. CV Generation]
+        A[Candidate draft generation]
+        B[Resume HTML plus template styles]
+        C[(PDF resumes in storage/resumes/pdfs)]
+        A --> B --> C
+    end
+
+    subgraph INGEST[2. PDF Ingestion and Indexing]
+        D[PDF text extraction with pdftotext]
+        E[Normalization plus section parsing]
+        F[Chunks plus structured candidate metadata]
+        G[(Local RAG index in storage/rag/index)]
+        C --> D --> E --> F --> G
+    end
+
+    subgraph CHAT[3. Chat Experience]
+        H[Chat UI at /chat]
+        I[Express API routes]
+        J[Hybrid retrieval: semantic plus lexical plus filters]
+        K[Grounded answer generation]
+        L[Answer with source citations]
+        H --> I --> J --> K --> L
+    end
+
+    G --> J
+    C -. PDF source of truth .-> J
 ```
 
 ## Repository Structure

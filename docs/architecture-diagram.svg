@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="790" viewBox="0 0 1600 790" role="img" aria-labelledby="title desc">
+  <title id="title">CV Asker architecture overview</title>
+  <desc id="desc">Generation, ingestion, indexing, and chat workflow for the CV Asker application.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8f4ec"/>
+      <stop offset="100%" stop-color="#eef3f8"/>
+    </linearGradient>
+    <linearGradient id="panelWarm" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff4dd"/>
+      <stop offset="100%" stop-color="#ffe6bf"/>
+    </linearGradient>
+    <linearGradient id="panelCool" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#edf6ff"/>
+      <stop offset="100%" stop-color="#dbeeff"/>
+    </linearGradient>
+    <linearGradient id="panelMint" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#effaf2"/>
+      <stop offset="100%" stop-color="#d7f2df"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#36536b"/>
+    </marker>
+    <style>
+      .title { font: 700 34px "Aptos", "Segoe UI", Arial, sans-serif; fill: #1f2a37; }
+      .subtitle { font: 500 16px "Aptos", "Segoe UI", Arial, sans-serif; fill: #526070; }
+      .panel-title { font: 700 22px "Aptos", "Segoe UI", Arial, sans-serif; fill: #223142; }
+      .panel-copy { font: 500 13px "Aptos", "Segoe UI", Arial, sans-serif; fill: #5c6878; }
+      .node-title { font: 700 16px "Aptos", "Segoe UI", Arial, sans-serif; fill: #1f2a37; }
+      .node-copy { font: 500 12px "Aptos", "Segoe UI", Arial, sans-serif; fill: #566273; }
+      .node { fill: #ffffff; stroke: #d5dde6; stroke-width: 1.5; }
+      .panel { stroke: rgba(54, 83, 107, 0.14); stroke-width: 1.5; }
+      .arrow { stroke: #36536b; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .dashed { stroke-dasharray: 10 8; }
+      .label { font: 600 13px "Aptos", "Segoe UI", Arial, sans-serif; fill: #36536b; }
+      .shadow { filter: drop-shadow(0 12px 24px rgba(31, 42, 55, 0.08)); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="790" rx="28" fill="url(#bg)"/>
+
+  <text x="72" y="74" class="title">CV Asker Architecture Overview</text>
+  <text x="72" y="104" class="subtitle">Local-first pipeline from fake CV generation to grounded chat answers with source citations.</text>
+
+  <g class="shadow">
+    <rect x="56" y="144" width="462" height="580" rx="28" fill="url(#panelWarm)" class="panel"/>
+    <rect x="569" y="144" width="462" height="580" rx="28" fill="url(#panelCool)" class="panel"/>
+    <rect x="1082" y="144" width="462" height="580" rx="28" fill="url(#panelMint)" class="panel"/>
+  </g>
+
+  <text x="88" y="186" class="panel-title">1. CV Generation</text>
+  <text x="88" y="210" class="panel-copy">
+    <tspan x="88" dy="0">Synthetic candidate data is turned into</tspan>
+    <tspan x="88" dy="18">realistic PDF resumes.</tspan>
+  </text>
+
+  <text x="601" y="186" class="panel-title">2. PDF Ingestion and Indexing</text>
+  <text x="601" y="210" class="panel-copy">
+    <tspan x="601" dy="0">PDF files are the source of truth for extraction,</tspan>
+    <tspan x="601" dy="18">parsing, and local RAG indexing.</tspan>
+  </text>
+
+  <text x="1114" y="186" class="panel-title">3. Chat Experience</text>
+  <text x="1114" y="210" class="panel-copy">
+    <tspan x="1114" dy="0">Users ask questions through the UI and receive</tspan>
+    <tspan x="1114" dy="18">grounded answers with citations.</tspan>
+  </text>
+
+  <g class="shadow">
+    <rect x="88" y="248" width="398" height="92" rx="22" class="node"/>
+    <text x="114" y="284" class="node-title">Candidate Draft Generation</text>
+    <text x="114" y="308" class="node-copy">
+      <tspan x="114" dy="0">Fake profiles, experience, education, skills,</tspan>
+      <tspan x="114" dy="18">and photo prompts.</tspan>
+    </text>
+
+    <rect x="88" y="388" width="398" height="92" rx="22" class="node"/>
+    <text x="114" y="424" class="node-title">Resume HTML and Template Styles</text>
+    <text x="114" y="448" class="node-copy">
+      <tspan x="114" dy="0">Layouts and print-focused styling are</tspan>
+      <tspan x="114" dy="18">assembled for rendering.</tspan>
+    </text>
+
+    <rect x="88" y="528" width="398" height="108" rx="22" class="node"/>
+    <text x="114" y="564" class="node-title">PDF Resumes in Local Storage</text>
+    <text x="114" y="584" class="node-copy">
+      <tspan x="114" dy="0">Files are written to `storage/resumes/pdfs`</tspan>
+      <tspan x="114" dy="18">and become the ingestion input.</tspan>
+    </text>
+  </g>
+
+  <g class="shadow">
+    <rect x="601" y="248" width="398" height="92" rx="22" class="node"/>
+    <text x="627" y="284" class="node-title">PDF Text Extraction</text>
+    <text x="627" y="308" class="node-copy">
+      <tspan x="627" dy="0">`pdftotext` extracts text directly from the</tspan>
+      <tspan x="627" dy="18">generated PDF documents.</tspan>
+    </text>
+
+    <rect x="601" y="388" width="398" height="92" rx="22" class="node"/>
+    <text x="627" y="424" class="node-title">Normalization and Section Parsing</text>
+    <text x="627" y="444" class="node-copy">
+      <tspan x="627" dy="0">The text is cleaned and split into summary,</tspan>
+      <tspan x="627" dy="18">experience, skills, and more.</tspan>
+    </text>
+
+    <rect x="601" y="528" width="398" height="108" rx="22" class="node"/>
+    <text x="627" y="564" class="node-title">Chunks and Structured Metadata</text>
+    <text x="627" y="584" class="node-copy">
+      <tspan x="627" dy="0">Chunk text, inferred candidate facts, and</tspan>
+      <tspan x="627" dy="18">source references are stored together.</tspan>
+    </text>
+
+    <rect x="687" y="648" width="226" height="56" rx="18" class="node"/>
+    <text x="720" y="683" class="node-title">Local RAG Index</text>
+  </g>
+
+  <g class="shadow">
+    <rect x="1114" y="248" width="398" height="92" rx="22" class="node"/>
+    <text x="1140" y="284" class="node-title">Chat UI at `/chat`</text>
+    <text x="1140" y="308" class="node-copy">
+      <tspan x="1140" dy="0">A simple frontend sends questions and</tspan>
+      <tspan x="1140" dy="18">renders answers.</tspan>
+    </text>
+
+    <rect x="1114" y="388" width="398" height="92" rx="22" class="node"/>
+    <text x="1140" y="424" class="node-title">Express API Routes</text>
+    <text x="1140" y="444" class="node-copy">
+      <tspan x="1140" dy="0">Endpoints handle indexing, asking, and</tspan>
+      <tspan x="1140" dy="18">resume generation requests.</tspan>
+    </text>
+
+    <rect x="1114" y="528" width="398" height="92" rx="22" class="node"/>
+    <text x="1140" y="564" class="node-title">Hybrid Retrieval plus Grounded Answer</text>
+    <text x="1140" y="584" class="node-copy">
+      <tspan x="1140" dy="0">Semantic and lexical search feed the LLM</tspan>
+      <tspan x="1140" dy="18">with relevant resume context.</tspan>
+    </text>
+
+    <rect x="1114" y="648" width="398" height="56" rx="18" class="node"/>
+    <text x="1140" y="683" class="node-title">Answer with Source Citations</text>
+  </g>
+
+  <path d="M 287 340 L 287 388" class="arrow"/>
+  <path d="M 287 480 L 287 528" class="arrow"/>
+
+  <path d="M 486 582 L 601 582" class="arrow"/>
+  <path d="M 800 340 L 800 388" class="arrow"/>
+  <path d="M 800 480 L 800 528" class="arrow"/>
+  <path d="M 800 636 L 800 648" class="arrow"/>
+
+  <path d="M 1313 340 L 1313 388" class="arrow"/>
+  <path d="M 1313 480 L 1313 528" class="arrow"/>
+  <path d="M 1313 620 L 1313 648" class="arrow"/>
+
+  <path d="M 913 676 L 1114 676" class="arrow"/>
+  <path d="M 486 608 C 560 640, 640 664, 687 676" class="arrow dashed"/>
+  <text x="520" y="648" class="label">PDF source of truth</text>
+</svg>
