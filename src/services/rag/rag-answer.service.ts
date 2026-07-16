@@ -1,5 +1,8 @@
 import { hasOpenRouterApiKey } from '../../config/env.js';
-import { getDefaultResumeLlmModel } from '../../config/resume-generation.js';
+import {
+  getDefaultRagAnswerModel,
+  resumeGenerationConfig,
+} from '../../config/resume-generation.js';
 import type { ResumeRagAnswerResult, ResumeRagCandidateMatch } from '../../types/rag.js';
 import { generateTextCompletion } from '../ai/ai.service.js';
 import { searchResumeRag } from './rag-retrieval.service.js';
@@ -45,11 +48,14 @@ async function generateGroundedAnswer(
   question: string,
   matches: ResumeRagCandidateMatch[]
 ): Promise<{ answer: string; model: string }> {
-  const model = getDefaultResumeLlmModel();
-  const context = matches.slice(0, 4).map((match) => buildCandidateContext(match)).join('\n\n---\n\n');
+  const model = getDefaultRagAnswerModel();
+  const context = matches
+    .slice(0, resumeGenerationConfig.rag.answering.topMatchesForAnswer)
+    .map((match) => buildCandidateContext(match))
+    .join('\n\n---\n\n');
   const answer = await generateTextCompletion({
     model,
-    maxTokens: 500,
+    maxTokens: resumeGenerationConfig.rag.answering.maxTokens,
     systemInstruction:
       'You are CV Asker. Answer only from the provided resume evidence. Be concise, practical, and explicit about uncertainty. Cite claims inline using the provided citation labels exactly as written.',
     prompt: [

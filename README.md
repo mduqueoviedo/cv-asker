@@ -1,140 +1,106 @@
 # CV Asker
 
-CV Asker is a local-first full-stack recruitment prototype. The project combines realistic resume generation, a hybrid RAG ingestion pipeline, and a conversational interface that can answer questions about candidate profiles with source attribution.
+CV Asker is a local-first prototype for screening CVs with RAG.
+
+It generates fake resumes as PDFs, parses those PDFs directly, builds a local searchable index, and lets you ask natural-language questions with grounded sources.
+
+## What It Does
+
+The current flow is:
+
+1. Generate a batch of fake resumes as PDFs.
+2. Parse the PDFs directly.
+3. Normalize and split the text into sections and chunks.
+4. Build a local RAG index.
+5. Answer questions against that dataset from `/chat` or the API.
+
+Important rule:
+
+- The PDF is the source of truth for RAG ingestion.
+- Derived CV metadata is not used as ingestion input.
+
+## Quick Start
+
+1. Install dependencies.
+2. Add `OPENROUTER_API_KEY` to `.env`.
+3. Generate resumes:
+
+```bash
+pnpm generate
+```
+
+4. Start the app:
+
+```bash
+pnpm dev
+```
+
+5. Open:
+
+```text
+http://localhost:3000/chat
+```
+
+That is the shortest end-to-end path.
+
+## Main Commands
+
+```bash
+pnpm generate
+pnpm dev
+pnpm build
+pnpm rag:index
+pnpm rag:ask -- "Which candidates speak English and have backend experience?"
+```
+
+Useful extra checks:
+
+```bash
+pnpm extract:text
+pnpm extract:text:file -- /path/to/any-cv.pdf
+```
+
+## Main Endpoints
+
+- `GET /chat`: lightweight local chat UI
+- `GET /api/rag/status`: dataset and index status
+- `POST /api/rag/index`: rebuild the local RAG index
+- `POST /api/rag/ask`: ask a grounded question
+- `POST /api/resumes/generate`: generate a new PDF dataset
+
+## Configuration
+
+The main knobs are centralized in:
+
+- `src/config/resume-generation.ts`
+
+This is where you can quickly change:
+
+- resume generation defaults
+- fallback text-generation models
+- image model
+- RAG answer model
+- retry and timeout settings
+
+For the chat/RAG answers we now use a dedicated config entry:
+
+- `resumeGenerationConfig.rag.answering.defaultModel`
+
+Right now it is set to:
+
+- `google/gemini-2.5-flash`
+
+If you want to switch the paid Gemini model later, that is the main place to change it.
 
 ## Source Of Truth
 
 - The original company requirements PDF is kept locally at `.local/requirements/ai-full-stack-developer-business-case.pdf`.
 - That file is intentionally excluded from git tracking.
-- The repository-safe requirements summary lives in `docs/project-requirements.md`.
-- For the RAG workflow, ingestion must read and parse PDF resumes directly.
-- Derived JSON resume metadata must not be used as an ingestion input.
+- The repository-safe summary is in `docs/project-requirements.md`.
 
-## Project Status
+## Notes
 
-- The backend runs on Express + TypeScript with ESM and `NodeNext`.
-- Local resume dataset generation is implemented.
-- PDF extraction, normalization, section parsing, chunking, and structured inference are implemented.
-- A local hybrid RAG flow is implemented end to end, including indexing, retrieval, grounded answers, and a lightweight chat surface at `/chat`.
-
-## End-to-End Project Map
-
-1. Resume dataset generation: implemented
-2. PDF text extraction and normalization: implemented
-3. Section parsing and chunking from parsed PDF text: implemented
-4. Local embedding generation and vector-style storage: implemented
-5. Hybrid retrieval with semantic search plus structured filters: implemented
-6. Answer generation grounded on retrieved CV evidence: implemented
-7. Lightweight chat experience with source attribution: implemented
-
-## Backend Capabilities
-
-- Modular route/controller/service structure under `src/`.
-- OpenRouter integration through native `fetch`.
-- Image generation through native `fetch`, backed by OpenRouter.
-- Shared AI HTTP retry layer with timeout and exponential backoff.
-- Ordered OpenRouter fallback for lightweight resume-text enrichment.
-- Centralized product defaults for models, limits, languages, templates, and AI request tuning in `src/config/resume-generation.ts`.
-- Resume generation builds the CV structure locally with `faker` and enriches only summary/highlights with the LLM.
-- Resume generation creates a realistic synthetic headshot per candidate before rendering the PDF.
-- Resume datasets can be generated in `en` or `es-ES`.
-
-## Architecture Overview
-
-See `docs/architecture.md` for the full architecture notes and Mermaid diagram.
-
-```text
-Resume generation API
-  -> build fresh fake candidate dataset
-  -> render styled resume templates into PDFs
-  -> persist artifacts locally
-  -> extract PDF text directly from the generated resumes
-  -> parse sections and generate chunks from normalized PDF text
-  -> build a local hashed-vector index with structured candidate facets
-  -> run hybrid retrieval for user questions
-  -> answer in chat with source attribution
-```
-
-## Extraction Heuristics
-
-- PDF parsing uses `pdftotext -layout`, so the source of truth is always the visible PDF, not hidden JSON metadata.
-- Normalization repairs wrapped lines, joins hyphenated words, collapses noisy whitespace, and rebuilds cleaner paragraphs from the raw PDF text stream.
-- Section detection is heuristic-based and bilingual. It looks for heading aliases such as `Experience`, `Experiencia`, `Education`, `Formacion`, `Languages`, `Idiomas`, `Certifications`, and `Skills`.
-- When headings are weak or missing, block classification is scored from signals like date ranges, contact patterns, education institutions, language-level pairs, certification terms, and action-oriented work-history verbs.
-- Structured experience extraction splits merged blocks on repeated date-range paragraphs and attaches a following `Skills` or `Technologies` block to the preceding experience entry when appropriate.
-- The parser is intentionally generic: it should work with arbitrary CVs, not just the synthetic ones generated by this repo, although heavily stylized PDFs still need iterative tuning.
-
-## Local Development
-
-- `pnpm dev`: Run the backend in watch mode.
-- `pnpm build`: Compile the TypeScript backend into `dist`.
-- `pnpm generate`: Run resume generation using the defaults defined in `src/config/resume-generation.ts`.
-- `pnpm extract:text`: Extract and normalize text from the generated PDFs into `storage/rag/extracted-text/`.
-- `pnpm extract:text:file -- <pdf-path>`: Validate extraction, section parsing, and chunking against any local CV PDF.
-- `pnpm rag:index`: Build or rebuild the local RAG index from the generated PDFs.
-- `pnpm rag:ask -- "<question>"`: Run a local RAG query from the terminal.
-- `pnpm generate -- --count 12 --language en --mode append`: Override any default for a specific run without touching `.env`.
-
-The backend starts on `http://localhost:3000` by default.
-
-## API Endpoints
-
-- `GET /`: Basic service status payload.
-- `GET /chat`: Lightweight local chat UI for the resume dataset.
-- `GET /api/resumes`: Inspect whether a generated resume dataset already exists on disk.
-- `POST /api/resumes/generate`: Generate a fresh batch of fake resumes as PDFs.
-- `GET /api/rag/status`: Inspect dataset/index readiness for the RAG flow.
-- `POST /api/rag/index`: Build or rebuild the local RAG index.
-- `POST /api/rag/ask`: Ask a grounded question against the ingested resumes.
-
-## Module Status
-
-- `src/services/resumes/resume-generator.service.ts`: implemented
-- `src/services/resumes/resume-html.service.ts`: implemented
-- `src/services/resumes/resume-faker-data.provider.ts`: implemented
-- `src/services/resumes/resume-llm-text.service.ts`: implemented
-- `src/services/resumes/resume-photo.service.ts`: implemented
-- `src/services/ai/ai-http.service.ts`: implemented
-- `src/services/ai/image-generation.service.ts`: implemented
-- `src/services/ai/openrouter-image.service.ts`: implemented
-- `src/services/rag/pdf-text-extractor.service.ts`: implemented
-- `src/services/rag/text-normalizer.service.ts`: implemented
-- `src/services/rag/resume-pdf-text.service.ts`: implemented
-- `src/services/rag/resume-section-parser.service.ts`: implemented
-- `src/services/rag/resume-chunker.service.ts`: implemented
-- `src/services/rag/rag-index.service.ts`: implemented
-- `src/services/rag/rag-retrieval.service.ts`: implemented
-- `src/services/rag/rag-answer.service.ts`: implemented
-- Retrieval services: implemented
-- Chat orchestration: implemented
-- Frontend application: lightweight local implementation available
-
-## Resume Generation Notes
-
-- Each dataset generation run supports `replace` or `append`.
-- `replace` is the default mode and clears the previous output before generating a fresh dataset.
-- `append` keeps the existing dataset and adds a new batch of resumes without reusing candidate ids or file names.
-- The generator currently accepts between 1 and 30 resumes per generation run.
-- Personal seed data and the full resume structure come from `faker` plus small local catalogs.
-- OpenRouter is used only to enrich the professional summary and highlights, keeping token usage and failure surface low.
-- The CV flow uses a generic image-generation layer to create a realistic synthetic profile photo for every candidate via OpenRouter image generation.
-- Supported document languages are `en` and `es-ES`, and the default generation mode mixes both within the same dataset.
-- Supported resume templates are `aurora-split` and `paper-compact`, and the default generation mode mixes both within the same dataset.
-- Output is written under `storage/generated-resumes/`.
-- The dataset manifest is retained only to track generated PDFs, batch settings, and generation provenance.
-- Generated photos are used only during rendering and are not persisted as separate files.
-- The first RAG slice extracts and normalizes text directly from the generated PDFs using `pdftotext`.
-- The second RAG slice derives section-aware chunk artifacts under `storage/rag/` from the parsed PDF text.
-
-## Environment Variables
-
-Copy `.env.example` into `.env`. `OPENROUTER_API_KEY` is required because CV generation uses OpenRouter for optional text enrichment and image generation.
-
-- `PORT`: Local backend port.
-- `OPENROUTER_API_KEY`: API key used for resume-text enrichment and synthetic profile photo generation.
-
-## Next Planned Steps
-
-- Improve retrieval quality for more heavily stylized or noisy third-party CV PDFs.
-- Tighten structured extraction for non-standard education and certification layouts.
-- Refine the lightweight chat UI for the final demonstration.
+- A concise architecture overview is available in `docs/architecture.md`.
+- The system is designed to work with arbitrary CV PDFs, not only the synthetic ones generated by this repo.
+- Extraction is heuristic-based, so very unusual layouts may still need tuning.
+- If the LLM is unavailable, the RAG layer falls back to a deterministic local answer instead of failing hard.

@@ -1,55 +1,76 @@
 # CV Asker Architecture
 
-This document describes the current implementation and the planned PDF-only RAG pipeline.
+This document describes the implemented end-to-end flow of CV Asker.
 
-## Source Of Truth
+## Core Rule
 
-- The original company requirements PDF is kept locally at `.local/requirements/ai-full-stack-developer-business-case.pdf`.
-- That file is intentionally excluded from git tracking.
-- The repository-ready requirements summary lives in `docs/project-requirements.md`.
-- RAG ingestion must read and parse generated PDF resumes directly.
+- The PDF is the source of truth for RAG ingestion.
+- Derived CV metadata is not used as an ingestion input.
+- The original requirements PDF is stored locally at `.local/requirements/ai-full-stack-developer-business-case.pdf` and excluded from git.
 
-## Architecture Diagram
+## System Diagram
 
 ```mermaid
-flowchart TD
-    A[Resume Generation API] --> B[Fake Candidate Seed Data]
-    B --> C[LLM Text Enrichment]
-    C --> D[Image Generation]
-    D --> E[HTML Resume Rendering]
-    E --> F[PDF Resume Output]
-    F --> G[Dataset Manifest]
-
-    F --> H[PDF Text Extraction]
-    H --> I[Text Normalization]
-    I --> J[Chunking and Enrichment]
-    J --> K[Embeddings and Local Vector Store]
-    K --> L[Hybrid Retrieval]
-    G --> L
-    L --> M[Grounded Chat Answer]
-    M --> N[Source Attribution]
+flowchart LR
+    A[Resume Generation] --> B[PDF Resume Dataset]
+    B --> C[PDF Text Extraction]
+    C --> D[Text Normalization]
+    D --> E[Section Parsing]
+    E --> F[Chunking]
+    E --> G[Structured Inference]
+    F --> H[Local RAG Index]
+    G --> H
+    H --> I[Hybrid Retrieval]
+    I --> J[Grounded Answer]
+    J --> K[/chat and /api/rag/ask]
 ```
 
-## Flow Notes
+## Runtime Flow
 
-1. Resume generation produces the candidate PDFs and a lightweight dataset manifest.
-2. The RAG pipeline starts from the PDFs only, not from hidden structured resume JSON.
-3. Text extraction uses a local PDF parsing command-line tool.
-4. Normalization converts noisy PDF output into cleaner paragraph text for section parsing and chunking.
-5. Section parsing uses bilingual heading heuristics to derive summary, experience, education, language, and certification blocks from parsed PDF text.
-6. Retrieval will combine semantic ranking with manifest-backed document selection and source references.
+1. A local batch of fake resumes is generated as PDFs.
+2. The PDFs are parsed directly with a local text-extraction tool.
+3. The extracted text is normalized to reduce layout noise.
+4. The normalized text is split into sections such as summary, experience, education, languages, and skills.
+5. Those sections are chunked and combined with structured signals inferred from the same PDF text.
+6. A local searchable index is built from chunks plus inferred candidate facets.
+7. User questions are answered through hybrid retrieval and grounded response generation, with source excerpts attached.
 
-## Extraction Criteria
+## Retrieval Model
 
-1. PDF text is extracted with layout preservation so visually adjacent lines remain close enough for later heuristics.
-2. The normalizer repairs line wraps, removes PDF whitespace noise, and rebuilds paragraphs before any semantic classification happens.
-3. Each paragraph or sub-block is scored with lightweight signals:
-   contact: email, phone, URLs, contact labels
-   experience: date ranges, role-at-company patterns, action verbs
-   education: degrees, institutions, academic keywords
-   languages: language plus proficiency pairs
-   certifications: certification keywords
-   skills: dense short lists of tools or capabilities
-4. If a single experience block actually contains several jobs because of the PDF layout, the structured extractor splits it again when a new paragraph introduces another date range.
-5. A `Skills` or `Technologies` block immediately following an experience block is linked back to that experience entry as associated skills.
-6. These rules are format-agnostic on purpose, so they can generalize beyond software CVs to operational, administrative, industrial, or retail profiles.
+The current RAG layer combines:
+
+- local hashed-vector similarity over chunk text
+- lexical overlap on query terms
+- lightweight structured filters such as languages and minimum experience
+- section-aware boosts for experience, education, certifications, and skills
+
+If the remote LLM is unavailable, the system returns a deterministic local fallback answer instead of failing hard.
+
+## Parsing Strategy
+
+The parser is heuristic-based and intentionally generic.
+
+It relies on:
+
+- bilingual heading aliases
+- date-range detection
+- contact-pattern detection
+- education and certification keywords
+- language-plus-level pairs
+- action-oriented work-history verbs
+
+This is meant to generalize beyond software CVs, although very unusual PDF layouts may still need tuning.
+
+## Main Configuration
+
+The main product configuration lives in:
+
+- `src/config/resume-generation.ts`
+
+That file centralizes:
+
+- resume generation defaults
+- fallback text-generation models
+- image-generation settings
+- RAG answer model
+- retry and timeout settings
