@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type {
   ResumeDocumentLanguage,
   ResumeDocumentLanguageSelection,
@@ -59,6 +60,9 @@ export const resumeGenerationConfig = {
       defaultModel: DEFAULT_RAG_ANSWER_MODEL,
       maxTokens: 500,
       topMatchesForAnswer: 4,
+    },
+    sources: {
+      importedPdfDirectory: path.join(process.cwd(), 'storage', 'imported-resumes', 'pdfs'),
     },
   },
   openRouter: {

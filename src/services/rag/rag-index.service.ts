@@ -1,22 +1,27 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { getResumeDatasetManifest } from '../resumes/resume-generator.service.js';
+import { resumeGenerationConfig } from '../../config/resume-generation.js';
 import type {
   ResumeRagCandidateProfile,
+  ResumeRagDatasetSource,
   ResumeRagDocumentArtifacts,
   ResumeRagIndex,
   ResumeRagIndexedChunk,
 } from '../../types/rag.js';
+import { getResumeDatasetManifest } from '../resumes/resume-generator.service.js';
 import {
   collectTopKeywords,
   createHashedEmbedding,
   getDefaultEmbeddingDimensions,
   normalizeSearchText,
 } from './local-vectorizer.service.js';
-import { extractResumeDatasetText } from './resume-pdf-text.service.js';
+import {
+  extractResumeDatasetText,
+  extractResumePdfDirectory,
+} from './resume-pdf-text.service.js';
 
 const RAG_INDEX_DIRECTORY = path.join(process.cwd(), 'storage', 'rag', 'index');
-const RAG_INDEX_FILE_PATH = path.join(RAG_INDEX_DIRECTORY, 'resume-rag-index.json');
 
 const MONTH_INDEX = new Map<string, number>([
   ['jan', 0],
@@ -66,8 +71,20 @@ interface ParsedMonthPoint {
   month: number;
 }
 
+interface RagDatasetSnapshot {
+  source: ResumeRagDatasetSource;
+  datasetId: string;
+  count: number;
+  location: string;
+}
+
 export interface BuildResumeRagIndexOptions {
   forceRebuild?: boolean;
+  source?: ResumeRagDatasetSource;
+}
+
+function resolveIndexFilePath(source: ResumeRagDatasetSource): string {
+  return path.join(RAG_INDEX_DIRECTORY, `${source}-resume-rag-index.json`);
 }
 
 function roundScore(value: number): number {
@@ -282,9 +299,88 @@ async function ensureIndexDirectory() {
   await mkdir(RAG_INDEX_DIRECTORY, { recursive: true });
 }
 
-export async function loadResumeRagIndex(): Promise<ResumeRagIndex | null> {
+async function getGeneratedDatasetSnapshot(): Promise<RagDatasetSnapshot | null> {
+  const manifest = await getResumeDatasetManifest();
+
+  if (!manifest) {
+    return null;
+  }
+
+  return {
+    source: 'generated',
+    datasetId: manifest.datasetId,
+    count: manifest.count,
+    location: manifest.pdfDirectory,
+  };
+}
+
+async function getImportedDatasetSnapshot(): Promise<RagDatasetSnapshot | null> {
+  const directoryPath = resumeGenerationConfig.rag.sources.importedPdfDirectory;
+
   try {
-    const content = await readFile(RAG_INDEX_FILE_PATH, 'utf8');
+    const directoryStats = await stat(directoryPath);
+
+    if (!directoryStats.isDirectory()) {
+      return null;
+    }
+
+    const fileNames = (await readdir(directoryPath))
+      .filter((fileName) => fileName.toLowerCase().endsWith('.pdf'))
+      .sort((left, right) => left.localeCompare(right));
+
+    if (fileNames.length === 0) {
+      return null;
+    }
+
+    const signature = createHash('sha1');
+
+    for (const fileName of fileNames) {
+      const fileStats = await stat(path.join(directoryPath, fileName));
+      signature.update(`${fileName}:${fileStats.size}:${fileStats.mtimeMs};`);
+    }
+
+    return {
+      source: 'imported',
+      datasetId: `imported-resume-dataset-${signature.digest('hex').slice(0, 12)}`,
+      count: fileNames.length,
+      location: directoryPath,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function getRagDatasetSnapshot(
+  source: ResumeRagDatasetSource
+): Promise<RagDatasetSnapshot | null> {
+  if (source === 'imported') {
+    return getImportedDatasetSnapshot();
+  }
+
+  return getGeneratedDatasetSnapshot();
+}
+
+export async function detectPreferredResumeRagSource(
+  source?: ResumeRagDatasetSource
+): Promise<ResumeRagDatasetSource> {
+  if (source) {
+    return source;
+  }
+
+  const importedSnapshot = await getImportedDatasetSnapshot();
+
+  if (importedSnapshot) {
+    return 'imported';
+  }
+
+  return 'generated';
+}
+
+export async function loadResumeRagIndex(
+  source: ResumeRagDatasetSource = 'generated'
+): Promise<ResumeRagIndex | null> {
+  try {
+    const content = await readFile(resolveIndexFilePath(source), 'utf8');
     return JSON.parse(content) as ResumeRagIndex;
   } catch {
     return null;
@@ -294,22 +390,35 @@ export async function loadResumeRagIndex(): Promise<ResumeRagIndex | null> {
 export async function buildResumeRagIndex(
   options: BuildResumeRagIndexOptions = {}
 ): Promise<ResumeRagIndex> {
-  const manifest = await getResumeDatasetManifest();
+  const source = await detectPreferredResumeRagSource(options.source);
+  const snapshot = await getRagDatasetSnapshot(source);
 
-  if (!manifest) {
-    throw new Error('No generated resume dataset was found on disk.');
+  if (!snapshot) {
+    throw new Error(
+      source === 'imported'
+        ? `No imported PDF dataset was found at ${resumeGenerationConfig.rag.sources.importedPdfDirectory}.`
+        : 'No generated resume dataset was found on disk.'
+    );
   }
 
-  const existingIndex = await loadResumeRagIndex();
+  const existingIndex = await loadResumeRagIndex(source);
 
-  if (!options.forceRebuild && existingIndex?.datasetId === manifest.datasetId) {
+  if (!options.forceRebuild && existingIndex?.datasetId === snapshot.datasetId) {
     return existingIndex;
   }
 
-  const extractionResult = await extractResumeDatasetText({
-    persistArtifacts: true,
-    preserveLayout: true,
-  });
+  const extractionResult =
+    source === 'imported'
+      ? await extractResumePdfDirectory(snapshot.location, {
+          datasetId: snapshot.datasetId,
+          candidateIdPrefix: 'imported',
+          persistArtifacts: true,
+          preserveLayout: true,
+        })
+      : await extractResumeDatasetText({
+          persistArtifacts: true,
+          preserveLayout: true,
+        });
   const candidates = extractionResult.documents.map((artifact) => buildCandidateProfile(artifact));
   const candidateById = new Map(candidates.map((candidate) => [candidate.candidateId, candidate]));
   const chunks = extractionResult.documents.flatMap((artifact) =>
@@ -319,6 +428,7 @@ export async function buildResumeRagIndex(
     )
   );
   const index: ResumeRagIndex = {
+    source,
     datasetId: extractionResult.datasetId,
     builtAt: new Date().toISOString(),
     embeddingDimensions: getDefaultEmbeddingDimensions(),
@@ -330,7 +440,7 @@ export async function buildResumeRagIndex(
   };
 
   await ensureIndexDirectory();
-  await writeFile(RAG_INDEX_FILE_PATH, JSON.stringify(index, null, 2));
+  await writeFile(resolveIndexFilePath(source), JSON.stringify(index, null, 2));
 
   return index;
 }
@@ -338,41 +448,53 @@ export async function buildResumeRagIndex(
 export async function ensureResumeRagIndex(
   options: BuildResumeRagIndexOptions = {}
 ): Promise<ResumeRagIndex> {
-  const manifest = await getResumeDatasetManifest();
+  const source = await detectPreferredResumeRagSource(options.source);
+  const snapshot = await getRagDatasetSnapshot(source);
 
-  if (!manifest) {
-    throw new Error('No generated resume dataset was found on disk.');
+  if (!snapshot) {
+    throw new Error(
+      source === 'imported'
+        ? `No imported PDF dataset was found at ${resumeGenerationConfig.rag.sources.importedPdfDirectory}.`
+        : 'No generated resume dataset was found on disk.'
+    );
   }
 
-  const existingIndex = await loadResumeRagIndex();
+  const existingIndex = await loadResumeRagIndex(source);
 
   if (
     existingIndex &&
-    existingIndex.datasetId === manifest.datasetId &&
+    existingIndex.datasetId === snapshot.datasetId &&
     !options.forceRebuild
   ) {
     return existingIndex;
   }
 
-  return buildResumeRagIndex(options);
+  return buildResumeRagIndex({
+    ...options,
+    source,
+  });
 }
 
-export async function getResumeRagStatus() {
-  const [manifest, index] = await Promise.all([
-    getResumeDatasetManifest(),
-    loadResumeRagIndex(),
+export async function getResumeRagStatus(source?: ResumeRagDatasetSource) {
+  const resolvedSource = await detectPreferredResumeRagSource(source);
+  const [snapshot, index] = await Promise.all([
+    getRagDatasetSnapshot(resolvedSource),
+    loadResumeRagIndex(resolvedSource),
   ]);
 
   return {
-    hasDataset: Boolean(manifest),
-    datasetId: manifest?.datasetId ?? null,
-    datasetCount: manifest?.count ?? 0,
+    source: resolvedSource,
+    hasDataset: Boolean(snapshot),
+    datasetId: snapshot?.datasetId ?? null,
+    datasetCount: snapshot?.count ?? 0,
+    datasetLocation: snapshot?.location ?? null,
     indexBuilt: Boolean(index),
     indexDatasetId: index?.datasetId ?? null,
     indexBuiltAt: index?.builtAt ?? null,
     candidateCount: index?.candidateCount ?? 0,
     chunkCount: index?.chunkCount ?? 0,
-    stale: Boolean(manifest && index && manifest.datasetId !== index.datasetId),
-    indexFilePath: RAG_INDEX_FILE_PATH,
+    stale: Boolean(snapshot && index && snapshot.datasetId !== index.datasetId),
+    indexFilePath: resolveIndexFilePath(resolvedSource),
+    importedPdfDirectory: resumeGenerationConfig.rag.sources.importedPdfDirectory,
   };
 }

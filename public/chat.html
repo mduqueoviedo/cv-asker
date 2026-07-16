@@ -6,15 +6,16 @@
     <title>CV Asker</title>
     <style>
       :root {
-        --bg: #f4ede3;
-        --panel: rgba(255, 252, 247, 0.84);
-        --panel-strong: rgba(255, 252, 247, 0.96);
-        --ink: #18212b;
-        --muted: #6b7683;
-        --accent: #8f4f2a;
-        --accent-soft: #e6c8b1;
-        --line: rgba(24, 33, 43, 0.12);
-        --shadow: 0 22px 50px rgba(38, 27, 15, 0.12);
+        --bg: #e8f1fb;
+        --panel: rgba(246, 250, 255, 0.84);
+        --panel-strong: rgba(252, 254, 255, 0.96);
+        --ink: #10233d;
+        --muted: #58708e;
+        --accent: #1f5fae;
+        --accent-strong: #0f4482;
+        --accent-soft: #d6e7fb;
+        --line: rgba(16, 35, 61, 0.12);
+        --shadow: 0 22px 50px rgba(15, 52, 96, 0.14);
       }
 
       * {
@@ -27,8 +28,9 @@
         font-family: "Aptos", "Segoe UI", sans-serif;
         color: var(--ink);
         background:
-          radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 28%),
-          linear-gradient(135deg, #efe1d0 0%, var(--bg) 50%, #e8dccb 100%);
+          radial-gradient(circle at top left, rgba(255, 255, 255, 0.72), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(112, 166, 230, 0.22), transparent 24%),
+          linear-gradient(135deg, #dbe9f8 0%, var(--bg) 46%, #cfe0f4 100%);
       }
 
       .shell {
@@ -49,6 +51,13 @@
 
       .sidebar {
         padding: 22px;
+      }
+
+      .sidebar-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
       }
 
       .sidebar h1 {
@@ -92,6 +101,26 @@
         color: var(--muted);
       }
 
+      .language-switcher {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .language-switcher select {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel-strong);
+        color: var(--ink);
+        font: inherit;
+        font-weight: 700;
+        padding: 8px 12px;
+        outline: none;
+      }
+
       .workspace {
         padding: 20px;
         display: grid;
@@ -130,6 +159,10 @@
         font-size: 13px;
       }
 
+      .sidebar-actions {
+        margin-top: 14px;
+      }
+
       button {
         border: 0;
         cursor: pointer;
@@ -140,7 +173,7 @@
       }
 
       .primary {
-        background: linear-gradient(135deg, var(--accent), #b06d45);
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
         color: white;
       }
 
@@ -213,17 +246,31 @@
   <body>
     <div class="shell">
       <aside class="card sidebar">
-        <p class="eyebrow">PDF-Only RAG</p>
-        <h1>CV Asker</h1>
-        <p>
-          Ask questions about the generated resume dataset. The backend will build or refresh the
-          local index automatically when needed.
+        <div class="sidebar-top">
+          <div>
+            <p class="eyebrow" id="eyebrowLabel">Search CVs</p>
+            <h1>CV Asker</h1>
+          </div>
+          <label class="language-switcher" for="uiLanguage">
+            <span id="languageLabel">UI</span>
+            <select id="uiLanguage">
+              <option value="es">ES</option>
+              <option value="en">EN</option>
+            </select>
+          </label>
+        </div>
+        <p id="sidebarDescription">
+          Ask about the CVs that are currently loaded. The app uses your PDFs automatically when
+          they are available.
         </p>
         <div class="status" id="statusPanel">
-          <div class="status-row"><span>Dataset</span><strong id="datasetState">Loading...</strong></div>
-          <div class="status-row"><span>Index</span><strong id="indexState">Loading...</strong></div>
-          <div class="status-row"><span>Candidates</span><strong id="candidateCount">-</strong></div>
-          <div class="status-row"><span>Chunks</span><strong id="chunkCount">-</strong></div>
+          <div class="status-row"><span id="sourceLabel">CV source</span><strong id="sourceState">Loading...</strong></div>
+          <div class="status-row"><span id="statusLabel">Status</span><strong id="readinessState">Loading...</strong></div>
+          <div class="status-row"><span id="cvCountLabel">CVs loaded</span><strong id="candidateCount">-</strong></div>
+        </div>
+        <p class="hint" id="statusHint">Place PDFs in `storage/imported-resumes/pdfs` to use your own CVs.</p>
+        <div class="sidebar-actions">
+          <button class="secondary" id="reindexButton" type="button">Refresh CVs</button>
         </div>
       </aside>
 
@@ -231,16 +278,15 @@
         <section class="composer">
           <textarea id="questionInput" placeholder="Example: Which candidates speak German and have more than 4 years of experience with backend systems?"></textarea>
           <div class="actions">
-            <div class="hint">Single flow: generate resumes, open `/chat`, ask a question.</div>
+            <div class="hint" id="composerHint">Press Enter to send. Use Shift+Enter for a new line.</div>
             <div>
-              <button class="secondary" id="reindexButton" type="button">Rebuild Index</button>
               <button class="primary" id="askButton" type="button">Ask</button>
             </div>
           </div>
         </section>
 
         <section class="result">
-          <span class="pill">Grounded Answer</span>
+          <span class="pill" id="resultPill">Answer</span>
           <h2 id="resultTitle">Ready</h2>
           <div class="answer empty" id="answerOutput">No question asked yet.</div>
 
@@ -251,11 +297,92 @@
     </div>
 
     <script>
+      const copyByLanguage = {
+        en: {
+          eyebrow: 'Search CVs',
+          languageLabel: 'UI',
+          sidebarDescription:
+            'Ask about the CVs that are currently loaded. The app uses your PDFs automatically when they are available.',
+          sourceLabel: 'CV source',
+          statusLabel: 'Status',
+          cvCountLabel: 'CVs loaded',
+          yourPdfs: 'Your PDFs',
+          demoPdfs: 'Demo PDFs',
+          noCvs: 'No CVs found',
+          readyStatus: 'Ready',
+          preparingStatus: 'Preparing',
+          refreshingStatus: 'Refreshing',
+          unavailableStatus: 'Unavailable',
+          statusHint: 'Place PDFs in `storage/imported-resumes/pdfs` to use your own CVs.',
+          refreshButton: 'Refresh CVs',
+          placeholder:
+            'Example: Which candidates speak German and have more than 4 years of experience with backend systems?',
+          composerHint: 'Press Enter to send. Use Shift+Enter for a new line.',
+          askButton: 'Ask',
+          resultPill: 'Answer',
+          idleTitle: 'Ready',
+          answerReady: 'Answer Ready',
+          working: 'Working',
+          error: 'Error',
+          thinking: 'Thinking...',
+          noQuestionYet: 'No question asked yet.',
+          topMatches: 'Best fitting CVs',
+          sources: 'Relevant snippets',
+          estimatedYears: 'estimated',
+          requestFailed: 'The search could not be completed.',
+        },
+        es: {
+          eyebrow: 'Buscar CVs',
+          languageLabel: 'Interfaz',
+          sidebarDescription:
+            'Haz preguntas sobre los CVs cargados en este momento. La aplicacion usa tus PDFs automaticamente cuando estan disponibles.',
+          sourceLabel: 'Origen',
+          statusLabel: 'Estado',
+          cvCountLabel: 'CVs cargados',
+          yourPdfs: 'Tus PDFs',
+          demoPdfs: 'PDFs de demo',
+          noCvs: 'No se han encontrado CVs',
+          readyStatus: 'Lista',
+          preparingStatus: 'Preparando',
+          refreshingStatus: 'Actualizando',
+          unavailableStatus: 'No disponible',
+          statusHint: 'Coloca PDFs en `storage/imported-resumes/pdfs` para usar tus propios CVs.',
+          refreshButton: 'Actualizar CVs',
+          placeholder:
+            'Ejemplo: Que candidatos hablan aleman y tienen mas de 4 anos de experiencia en sistemas backend?',
+          composerHint: 'Pulsa Enter para enviar. Usa Shift+Enter para una nueva linea.',
+          askButton: 'Preguntar',
+          resultPill: 'Respuesta',
+          idleTitle: 'Lista',
+          answerReady: 'Respuesta Lista',
+          working: 'Procesando',
+          error: 'Error',
+          thinking: 'Pensando...',
+          noQuestionYet: 'Todavia no se ha hecho ninguna pregunta.',
+          topMatches: 'CVs que mejor encajan',
+          sources: 'Fragmentos relevantes',
+          estimatedYears: 'estimados',
+          requestFailed: 'No se pudo completar la busqueda.',
+        },
+      };
+
+      function getCopy(language) {
+        return copyByLanguage[language] || copyByLanguage.en;
+      }
+
+      const uiLanguageSelect = document.getElementById('uiLanguage');
+      const eyebrowLabel = document.getElementById('eyebrowLabel');
+      const languageLabel = document.getElementById('languageLabel');
+      const sidebarDescription = document.getElementById('sidebarDescription');
+      const sourceLabel = document.getElementById('sourceLabel');
+      const statusLabel = document.getElementById('statusLabel');
+      const cvCountLabel = document.getElementById('cvCountLabel');
+      const statusHint = document.getElementById('statusHint');
+      const resultPill = document.getElementById('resultPill');
       const statusNodes = {
-        datasetState: document.getElementById('datasetState'),
-        indexState: document.getElementById('indexState'),
+        sourceState: document.getElementById('sourceState'),
+        readinessState: document.getElementById('readinessState'),
         candidateCount: document.getElementById('candidateCount'),
-        chunkCount: document.getElementById('chunkCount'),
       };
       const questionInput = document.getElementById('questionInput');
       const askButton = document.getElementById('askButton');
@@ -264,19 +391,84 @@
       const answerOutput = document.getElementById('answerOutput');
       const matchesNode = document.getElementById('matches');
       const citationsNode = document.getElementById('citations');
+      let lastResult = null;
+      let currentUiLanguage =
+        localStorage.getItem('cv-asker-ui-language') ||
+        (navigator.language.toLowerCase().startsWith('es') ? 'es' : 'en');
+
+      function applyUiLanguage(language) {
+        currentUiLanguage = language === 'es' ? 'es' : 'en';
+        localStorage.setItem('cv-asker-ui-language', currentUiLanguage);
+        document.documentElement.lang = currentUiLanguage;
+
+        const copy = getCopy(currentUiLanguage);
+        eyebrowLabel.textContent = copy.eyebrow;
+        languageLabel.textContent = copy.languageLabel;
+        sidebarDescription.textContent = copy.sidebarDescription;
+        sourceLabel.textContent = copy.sourceLabel;
+        statusLabel.textContent = copy.statusLabel;
+        cvCountLabel.textContent = copy.cvCountLabel;
+        statusHint.textContent = copy.statusHint;
+        questionInput.placeholder = copy.placeholder;
+        document.getElementById('composerHint').textContent = copy.composerHint;
+        askButton.textContent = copy.askButton;
+        reindexButton.textContent = copy.refreshButton;
+        resultPill.textContent = copy.resultPill;
+        uiLanguageSelect.value = currentUiLanguage;
+
+        if (answerOutput.classList.contains('empty')) {
+          answerOutput.textContent = copy.noQuestionYet;
+        }
+
+        if (lastResult) {
+          resultTitle.textContent = copy.answerReady;
+          renderMatches(lastResult.matches || []);
+          renderCitations(lastResult.citations || []);
+        } else {
+          resultTitle.textContent = copy.idleTitle;
+        }
+      }
+
+      function describeSource(status, language) {
+        const copy = getCopy(language);
+
+        if (!status.hasDataset) {
+          return copy.noCvs;
+        }
+
+        return status.source === 'imported' ? copy.yourPdfs : copy.demoPdfs;
+      }
+
+      function describeReadiness(status, language, isRefreshing = false) {
+        const copy = getCopy(language);
+
+        if (isRefreshing) {
+          return copy.refreshingStatus;
+        }
+
+        if (!status.hasDataset) {
+          return copy.unavailableStatus;
+        }
+
+        return status.indexBuilt ? copy.readyStatus : copy.preparingStatus;
+      }
 
       async function loadStatus() {
         const response = await fetch('/api/rag/status');
         const payload = await response.json();
         const status = payload.success ? payload : {};
+        const copy = getCopy(currentUiLanguage);
 
-        statusNodes.datasetState.textContent = status.hasDataset ? status.datasetId : 'Missing';
-        statusNodes.indexState.textContent = status.indexBuilt ? 'Ready' : 'Not built';
+        statusNodes.sourceState.textContent = describeSource(status, currentUiLanguage);
+        statusNodes.readinessState.textContent = describeReadiness(status, currentUiLanguage);
         statusNodes.candidateCount.textContent = String(status.candidateCount ?? 0);
-        statusNodes.chunkCount.textContent = String(status.chunkCount ?? 0);
+        if (!status.hasDataset) {
+          resultTitle.textContent = copy.idleTitle;
+        }
       }
 
       function renderMatches(matches) {
+        const copy = getCopy(currentUiLanguage);
         matchesNode.innerHTML = '';
 
         if (!matches.length) {
@@ -285,7 +477,7 @@
 
         const title = document.createElement('div');
         title.className = 'pill';
-        title.textContent = 'Top Matches';
+        title.textContent = copy.topMatches;
         matchesNode.appendChild(title);
 
         for (const match of matches) {
@@ -293,7 +485,7 @@
           node.className = 'match';
           node.innerHTML = `
             <strong>${match.fullName}</strong>
-            <div class="meta">${match.primaryRole} · ${match.totalEstimatedExperienceYears}y estimated · score ${match.score}</div>
+            <div class="meta">${match.primaryRole} · ${match.totalEstimatedExperienceYears}y ${copy.estimatedYears}</div>
             <div class="meta">${(match.languages || []).join(', ')}</div>
           `;
           matchesNode.appendChild(node);
@@ -301,6 +493,7 @@
       }
 
       function renderCitations(citations) {
+        const copy = getCopy(currentUiLanguage);
         citationsNode.innerHTML = '';
 
         if (!citations.length) {
@@ -309,7 +502,7 @@
 
         const title = document.createElement('div');
         title.className = 'pill';
-        title.textContent = 'Sources';
+        title.textContent = copy.sources;
         citationsNode.appendChild(title);
 
         for (const citation of citations) {
@@ -317,7 +510,7 @@
           node.className = 'citation';
           node.innerHTML = `
             <strong>${citation.fullName}</strong>
-            <div class="meta">${citation.sectionKind} · ${citation.pdfFileName} · score ${citation.score}</div>
+            <div class="meta">${citation.pdfFileName}</div>
             <div class="meta">${citation.excerpt}</div>
           `;
           citationsNode.appendChild(node);
@@ -331,10 +524,15 @@
           return;
         }
 
+        if (askButton.disabled) {
+          return;
+        }
+
+        const pendingCopy = getCopy(currentUiLanguage);
         askButton.disabled = true;
-        answerOutput.textContent = 'Thinking...';
+        answerOutput.textContent = pendingCopy.thinking;
         answerOutput.classList.remove('empty');
-        resultTitle.textContent = 'Working';
+        resultTitle.textContent = pendingCopy.working;
 
         try {
           const response = await fetch('/api/rag/ask', {
@@ -345,17 +543,18 @@
           const payload = await response.json();
 
           if (!payload.success) {
-            throw new Error(payload.error || 'The RAG request failed.');
+            throw new Error(payload.error || pendingCopy.requestFailed);
           }
 
           const { result } = payload;
-          resultTitle.textContent = result.model ? `Answered with ${result.model}` : 'Answered locally';
+          lastResult = result;
+          resultTitle.textContent = pendingCopy.answerReady;
           answerOutput.textContent = result.answer;
           renderMatches(result.matches || []);
           renderCitations(result.citations || []);
           await loadStatus();
         } catch (error) {
-          resultTitle.textContent = 'Error';
+          resultTitle.textContent = pendingCopy.error;
           answerOutput.textContent = error instanceof Error ? error.message : String(error);
         } finally {
           askButton.disabled = false;
@@ -365,6 +564,11 @@
       askButton.addEventListener('click', () => askQuestion(false));
       reindexButton.addEventListener('click', async () => {
         reindexButton.disabled = true;
+        statusNodes.readinessState.textContent = describeReadiness(
+          { hasDataset: true },
+          currentUiLanguage,
+          true
+        );
 
         try {
           await fetch('/api/rag/index', {
@@ -378,15 +582,27 @@
         }
       });
 
+      uiLanguageSelect.addEventListener('change', () => {
+        applyUiLanguage(uiLanguageSelect.value);
+        loadStatus().catch(() => {
+          const copy = getCopy(currentUiLanguage);
+          statusNodes.sourceState.textContent = copy.unavailableStatus;
+          statusNodes.readinessState.textContent = copy.unavailableStatus;
+        });
+      });
+
       questionInput.addEventListener('keydown', (event) => {
-        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
           askQuestion(false);
         }
       });
 
+      applyUiLanguage(currentUiLanguage);
       loadStatus().catch(() => {
-        statusNodes.datasetState.textContent = 'Unavailable';
-        statusNodes.indexState.textContent = 'Unavailable';
+        const copy = getCopy(currentUiLanguage);
+        statusNodes.sourceState.textContent = copy.unavailableStatus;
+        statusNodes.readinessState.textContent = copy.unavailableStatus;
       });
     </script>
   </body>

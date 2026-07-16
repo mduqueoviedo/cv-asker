@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getResumeDatasetManifest } from '../resumes/resume-generator.service.js';
 import type {
@@ -26,6 +26,13 @@ export interface ExtractSingleResumePdfOptions extends ExtractResumeDatasetTextO
   candidateId?: string;
   fullName?: string;
   primaryRole?: string;
+  datasetId?: string;
+  candidateIdPrefix?: string;
+}
+
+export interface ExtractResumePdfDirectoryOptions extends ExtractResumeDatasetTextOptions {
+  datasetId: string;
+  candidateIdPrefix?: string;
 }
 
 function createSlug(value: string): string {
@@ -180,11 +187,13 @@ export async function extractSingleResumePdf(
   });
   const fallbackFullName =
     options.fullName ?? inferFullNameFromRawText(rawText) ?? createFallbackFullName(pdfFileName);
-  const candidateId = options.candidateId ?? createSlug(fallbackFullName);
+  const candidateId =
+    options.candidateId ??
+    `${options.candidateIdPrefix ? `${options.candidateIdPrefix}-` : ''}${createSlug(fallbackFullName)}`;
   const normalized = normalizeExtractedPdfText(rawText);
   const document: ExtractedResumeTextDocument = {
-    datasetId: `ad-hoc-resume-${candidateId}`,
-    sourceType: 'ad-hoc-file',
+    datasetId: options.datasetId ?? `ad-hoc-resume-${candidateId}`,
+    sourceType: options.datasetId ? 'imported-folder' : 'ad-hoc-file',
     candidateId,
     fullName: fallbackFullName,
     primaryRole: options.primaryRole ?? 'Unknown role',
@@ -221,4 +230,40 @@ export async function extractSingleResumePdf(
   }
 
   return artifacts;
+}
+
+export async function extractResumePdfDirectory(
+  directoryPath: string,
+  options: ExtractResumePdfDirectoryOptions
+): Promise<{
+  datasetId: string;
+  documents: ResumeRagDocumentArtifacts[];
+  artifactDirectory: string | null;
+}> {
+  const fileNames = (await readdir(directoryPath))
+    .filter((fileName) => fileName.toLowerCase().endsWith('.pdf'))
+    .sort((left, right) => left.localeCompare(right));
+
+  if (fileNames.length === 0) {
+    throw new Error(`No PDF files were found in ${directoryPath}.`);
+  }
+
+  const documents: ResumeRagDocumentArtifacts[] = [];
+
+  for (const fileName of fileNames) {
+    const pdfFilePath = path.join(directoryPath, fileName);
+    const artifact = await extractSingleResumePdf(pdfFilePath, {
+      persistArtifacts: options.persistArtifacts,
+      preserveLayout: options.preserveLayout,
+      datasetId: options.datasetId,
+      candidateIdPrefix: options.candidateIdPrefix,
+    });
+    documents.push(artifact);
+  }
+
+  return {
+    datasetId: options.datasetId,
+    documents,
+    artifactDirectory: options.persistArtifacts ? EXTRACTED_TEXT_DIRECTORY : null,
+  };
 }

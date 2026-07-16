@@ -14,6 +14,11 @@ The current flow is:
 4. Build a local RAG index.
 5. Answer questions against that dataset from `/chat` or the API.
 
+There are two practical modes:
+
+- demo mode: generate resumes with the app
+- utility mode: drop real PDF CVs into `storage/imported-resumes/pdfs`
+
 Important rule:
 
 - The PDF is the source of truth for RAG ingestion.
@@ -42,6 +47,27 @@ http://localhost:3000/chat
 ```
 
 That is the shortest end-to-end path.
+
+## Using Real CV PDFs
+
+If you want to skip generation and use a real batch of CVs:
+
+1. Put the PDF files in:
+
+```text
+storage/imported-resumes/pdfs
+```
+
+2. Start the app:
+
+```bash
+pnpm dev
+```
+
+3. Open `/chat` or call `/api/rag/ask`
+
+If PDFs are detected in that folder, the RAG layer will use them automatically.
+If not, it falls back to the generated dataset.
 
 ## Main Commands
 

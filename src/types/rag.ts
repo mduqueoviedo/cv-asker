@@ -1,6 +1,7 @@
 import type { ResumeDocumentLanguage, ResumeTemplateId } from './resume.js';
 
-export type ResumeSourceType = 'generated-dataset' | 'ad-hoc-file';
+export type ResumeSourceType = 'generated-dataset' | 'ad-hoc-file' | 'imported-folder';
+export type ResumeRagDatasetSource = 'generated' | 'imported';
 export type ParsedResumeDocumentLanguage = ResumeDocumentLanguage | 'unknown';
 export type ParsedResumeTemplateId = ResumeTemplateId | 'unknown';
 
@@ -181,6 +182,7 @@ export interface ResumeRagIndexedChunk {
 }
 
 export interface ResumeRagIndex {
+  source: ResumeRagDatasetSource;
   datasetId: string;
   builtAt: string;
   embeddingDimensions: number;
@@ -233,9 +235,11 @@ export interface ResumeRagCandidateMatch {
 }
 
 export interface ResumeRagAnswerResult {
+  source: ResumeRagDatasetSource;
   datasetId: string;
   builtAt: string;
   question: string;
+  responseLanguage: 'en' | 'es';
   answer: string;
   analysis: ResumeRagQueryAnalysis;
   citations: ResumeRagCitation[];
